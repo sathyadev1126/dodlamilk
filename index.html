@@ -20,11 +20,7 @@
   .actions button { flex:1; background:#0f62fe; color:#fff; border:none; padding:6px; border-radius:6px; cursor:pointer; transition: transform 0.2s; }
   .actions button:hover { background:#0c4ed6; }
   .animate { animation: pop 0.5s ease; }
-  @keyframes pop {
-    0% { transform: scale(1); background:#0f62fe; }
-    50% { transform: scale(1.2); background:#45b649; }
-    100% { transform: scale(1); background:#0f62fe; }
-  }
+  @keyframes pop { 0% { transform: scale(1); background:#0f62fe; } 50% { transform: scale(1.2); background:#45b649; } 100% { transform: scale(1); background:#0f62fe; } }
 
   .calendar-container { margin:15px 0; display:flex; align-items:center; gap:10px; }
   .calendar-container label { font-weight:600; }
@@ -46,7 +42,6 @@
   .cart, .ledger { margin-top:25px; background:#fff; border-radius:12px; padding:15px; box-shadow:0 4px 10px rgba(0,0,0,0.05); }
   .export-btns { margin-top:10px; display:flex; gap:10px; }
   .export-btns button { background:#6a11cb; color:#fff; border:none; padding:6px 10px; border-radius:6px; cursor:pointer; }
-
 </style>
 </head>
 <body>
@@ -142,9 +137,46 @@ const products = [
   {id:20,name:"Cheese - 100g",price:80,img:"https://picsum.photos/200/150?random=20"}
 ];
 
-let cart = [];
-let ledger = [];
-let dailyLedger = {};
+let cart=[], ledger=[], dailyLedger={};
+
+// Load data from localStorage
+if(localStorage.getItem('cart')) cart=JSON.parse(localStorage.getItem('cart'));
+if(localStorage.getItem('ledger')) ledger=JSON.parse(localStorage.getItem('ledger'));
+if(localStorage.getItem('dailyLedger')) dailyLedger=JSON.parse(localStorage.getItem('dailyLedger'));
+
+// Store today's date
+let lastSavedDay = localStorage.getItem('lastSavedDay') || new Date().toISOString().slice(0,10);
+
+// Check rollover on load
+const today = new Date().toISOString().slice(0,10);
+if(today!==lastSavedDay){ rollover(); }
+
+// Save function
+function saveLocal(){
+  localStorage.setItem('cart',JSON.stringify(cart));
+  localStorage.setItem('ledger',JSON.stringify(ledger));
+  localStorage.setItem('dailyLedger',JSON.stringify(dailyLedger));
+  localStorage.setItem('lastSavedDay',today);
+}
+
+// Rollover function (archive previous day)
+function rollover(){
+  if(ledger.length>0){
+    const date=lastSavedDay;
+    dailyLedger[date] = dailyLedger[date]||[];
+    dailyLedger[date].push(...ledger);
+    downloadExcel(date); // automatic excel for previous day
+  }
+  cart=[]; ledger=[]; lastSavedDay=today;
+  saveLocal();
+}
+
+// Automatic rollover at midnight
+setInterval(()=>{
+  const now=new Date();
+  const curDay = now.toISOString().slice(0,10);
+  if(curDay!==lastSavedDay){ rollover(); renderCart(); renderLedger(); }
+},1000);
 
 // Render
 function renderProducts(){
@@ -175,8 +207,7 @@ function renderCart(){
 }
 function renderCartTable(tableId,totalId){
   const tbody=document.querySelector(`#${tableId} tbody`);
-  tbody.innerHTML='';
-  let total=0;
+  tbody.innerHTML=''; let total=0;
   cart.forEach((item,idx)=>{
     const line=item.qty*item.price; total+=line;
     const row=document.createElement('tr');
@@ -195,51 +226,42 @@ function renderLedgerTable(tableId,totalId){
   tbody.innerHTML=''; let sum=0;
   ledger.forEach(entry=>{
     const row=document.createElement('tr');
-    sum+=entry.total;
-    row.innerHTML=`<td>${new Date(entry.time).toLocaleString()}</td><td>${entry.items.map(i=>i.name+' x'+i.qty).join(', ')}</td><td>${entry.total}</td>`;
+    sum+=entry.qty*entry.price||entry.total||0;
+    row.innerHTML=`<td>${new Date(entry.time).toLocaleString()}</td><td>${entry.name||entry.items?.map(i=>i.name+' x'+i.qty).join(',')}</td><td>${entry.price||entry.total}</td>`;
     tbody.appendChild(row);
   });
   document.getElementById(totalId).innerText=sum;
 }
 
+// Cart functions
 function addToCart(id){
   const product=products.find(p=>p.id===id);
   const qty=parseInt(document.getElementById('qty-'+id).value)||1;
   const existing=cart.find(c=>c.id===id);
-  if(existing){existing.qty+=qty;}else{cart.push({...product,qty});}
+  if(existing){existing.qty+=qty;} else {cart.push({...product,qty});}
   renderCart();
+  saveLocal();
   const btn=document.getElementById('btn-'+id);
   btn.classList.add('animate'); setTimeout(()=>btn.classList.remove('animate'),500);
 }
-function removeFromCart(idx){ cart.splice(idx,1); renderCart(); }
+function removeFromCart(idx){ cart.splice(idx,1); renderCart(); saveLocal(); }
 
 function checkout(){
   if(cart.length===0){alert('Cart empty');return;}
-  const total=cart.reduce((s,i)=>s+i.qty*i.price,0);
-  ledger.push({time:Date.now(),items:cart,total});
-  const today=new Date().toISOString().slice(0,10);
-  if(!dailyLedger[today]) dailyLedger[today]=[];
-  dailyLedger[today].push(...cart.map(i=>({...i,time:Date.now()})));
-  cart=[]; renderCart(); renderLedger();
+  cart.forEach(item=>ledger.push({...item,time:Date.now()}));
+  cart=[]; renderCart(); renderLedger(); saveLocal();
 }
-
-// Automatic rollover at midnight
-setInterval(()=>{
-  const now=new Date();
-  if(now.getHours()===0 && now.getMinutes()===0 && now.getSeconds()===0){
-    cart=[]; ledger=[]; renderCart(); renderLedger();
-  }
-},1000);
 
 // Exports
 function exportExcel(){ const today=new Date().toISOString().slice(0,10); downloadExcel(today); }
 function downloadLedgerByDate(){
   const selected=document.getElementById('ledgerDate').value;
-  if(!selected || !dailyLedger[selected]) { alert("No data for selected date"); return; }
+  if(!selected || !dailyLedger[selected]){alert("No data for selected date"); return;}
   downloadExcel(selected);
 }
 function downloadExcel(date){
   const data=dailyLedger[date]||[];
+  if(data.length===0){ alert("No data"); return; }
   const ws=XLSX.utils.json_to_sheet(data.map(l=>({
     Time:new Date(l.time).toLocaleString(),
     Item:l.name,
@@ -257,8 +279,7 @@ function exportPDF(){
   const today=new Date().toISOString().slice(0,10);
   const data=dailyLedger[today]||[];
   doc.text(`Sales Ledger - ${today}`,10,10);
-  // table headers
-  doc.setFontSize(10); let startY=20;
+  let startY=20; doc.setFontSize(10);
   doc.text("Time",10,startY); doc.text("Product",50,startY); doc.text("Qty",110,startY); doc.text("Price",130,startY); doc.text("Total",150,startY);
   startY+=6; doc.setLineWidth(0.1); doc.line(10,startY-2,190,startY-2);
   data.forEach(l=>{
@@ -273,9 +294,10 @@ function exportPDF(){
 }
 
 // Mobile modals
-function toggleCartModal(){ document.getElementById('cartModal').style.display=document.getElementById('cartModal').style.display==='block'?'none':'block'; }
-function toggleLedgerModal(){ document.getElementById('ledgerModal').style.display=document.getElementById('ledgerModal').style.display==='block'?'none':'block'; }
+function toggleCartModal(){ const m=document.getElementById('cartModal'); m.style.display=(m.style.display==='block')?'none':'block'; }
+function toggleLedgerModal(){ const m=document.getElementById('ledgerModal'); m.style.display=(m.style.display==='block')?'none':'block'; }
 
+// Initial render
 renderProducts(); renderCart(); renderLedger();
 </script>
 </body>
