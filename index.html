@@ -1,0 +1,161 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8"/>
+  <meta name="viewport" content="width=device-width,initial-scale=1"/>
+  <title>DODLA Milk Diary - Product Grid</title>
+  <style>
+    body { margin:0; font-family:Segoe UI, Arial, sans-serif; background:#f7fbff; }
+    header { background:linear-gradient(90deg,#0f62fe,#6a11cb); color:#fff; padding:15px; text-align:center; }
+    h1 { margin:0; font-size:22px; }
+    .wrap { max-width:1200px; margin:auto; padding:15px; }
+    .grid { display:grid; grid-template-columns:repeat(auto-fill,minmax(180px,1fr)); gap:16px; }
+    .card { background:#fff; border-radius:12px; box-shadow:0 4px 10px rgba(0,0,0,0.05); overflow:hidden; display:flex; flex-direction:column; }
+    .card img { width:100%; height:120px; object-fit:cover; }
+    .card-body { padding:10px; flex:1; display:flex; flex-direction:column; justify-content:space-between; }
+    .name { font-weight:600; font-size:14px; margin-bottom:4px; }
+    .price { color:#0f62fe; font-weight:700; margin-bottom:6px; }
+    .actions { display:flex; gap:6px; }
+    .actions input { width:50px; padding:5px; border:1px solid #ddd; border-radius:6px; text-align:center; }
+    .actions button { flex:1; background:#0f62fe; color:#fff; border:none; padding:6px; border-radius:6px; cursor:pointer; }
+    .actions button:hover { background:#0c4ed6; }
+    .cart, .ledger { margin-top:25px; background:#fff; border-radius:12px; padding:15px; box-shadow:0 4px 10px rgba(0,0,0,0.05); }
+    table { width:100%; border-collapse:collapse; }
+    th,td { border-bottom:1px solid #eee; padding:8px; font-size:14px; text-align:left; }
+    tfoot td { font-weight:700; }
+  </style>
+</head>
+<body>
+  <header>
+    <h1>DODLA Milk Diary</h1>
+    <p>Click Add under each product to add into Cart</p>
+  </header>
+
+  <div class="wrap">
+    <h2>Products</h2>
+    <div class="grid" id="productGrid"></div>
+
+    <div class="cart">
+      <h3>Cart</h3>
+      <table id="cartTable">
+        <thead><tr><th>Item</th><th>Qty</th><th>Price</th><th>Total</th><th></th></tr></thead>
+        <tbody></tbody>
+        <tfoot><tr><td colspan="3">Subtotal</td><td id="cartTotal">0</td><td></td></tr></tfoot>
+      </table>
+      <button onclick="checkout()">Checkout (Save)</button>
+    </div>
+
+    <div class="ledger">
+      <h3>Sales Ledger</h3>
+      <table id="ledgerTable">
+        <thead><tr><th>Time</th><th>Items</th><th>Amount</th></tr></thead>
+        <tbody></tbody>
+        <tfoot><tr><td colspan="2">Total Today</td><td id="ledgerTotal">0</td></tr></tfoot>
+      </table>
+    </div>
+  </div>
+
+<script>
+const sampleProducts = [
+  "Milk - 200ml", "Milk - 500ml", "Milk - 1L", "Milk - 2L",
+  "Curd - 200g", "Curd - 500g", "Curd - 1kg",
+  "Butter - 100g", "Butter - 500g",
+  "Paneer - 100g", "Paneer - 200g",
+  "Ghee - 200ml", "Ghee - 500ml",
+  "Flavored Milk - Badam", "Flavored Milk - Strawberry", "Flavored Milk - Chocolate",
+  "Lassi - Sweet", "Lassi - Salt", "Buttermilk - 200ml", "Cheese - 100g"
+];
+
+// assign random prices
+const products = sampleProducts.map((name,i)=>({
+  id:i+1,
+  name,
+  price: (Math.random()*50+10).toFixed(0),
+  img:`https://picsum.photos/200/150?random=${i+1}`
+}));
+
+let cart = [];
+let ledger = [];
+
+function renderProducts(){
+  const grid = document.getElementById('productGrid');
+  grid.innerHTML = '';
+  products.forEach(p=>{
+    const div=document.createElement('div');
+    div.className='card';
+    div.innerHTML=`
+      <img src="${p.img}" alt="${p.name}">
+      <div class="card-body">
+        <div>
+          <div class="name">${p.name}</div>
+          <div class="price">₹ ${p.price}</div>
+        </div>
+        <div class="actions">
+          <input type="number" min="1" value="1" id="qty-${p.id}">
+          <button onclick="addToCart(${p.id})">Add</button>
+        </div>
+      </div>
+    `;
+    grid.appendChild(div);
+  });
+}
+
+function renderCart(){
+  const tbody=document.querySelector('#cartTable tbody');
+  tbody.innerHTML='';
+  let total=0;
+  cart.forEach((item,idx)=>{
+    const row=document.createElement('tr');
+    const line=item.qty*item.price;
+    total+=line;
+    row.innerHTML=`
+      <td>${item.name}</td>
+      <td>${item.qty}</td>
+      <td>${item.price}</td>
+      <td>${line}</td>
+      <td><button onclick="removeFromCart(${idx})">X</button></td>`;
+    tbody.appendChild(row);
+  });
+  document.getElementById('cartTotal').innerText=total;
+}
+
+function renderLedger(){
+  const tbody=document.querySelector('#ledgerTable tbody');
+  tbody.innerHTML='';
+  let sum=0;
+  ledger.forEach(entry=>{
+    const row=document.createElement('tr');
+    sum+=entry.total;
+    row.innerHTML=`<td>${new Date(entry.time).toLocaleString()}</td>
+                   <td>${entry.items.map(i=>`${i.name} x${i.qty}`).join(', ')}</td>
+                   <td>${entry.total}</td>`;
+    tbody.appendChild(row);
+  });
+  document.getElementById('ledgerTotal').innerText=sum;
+}
+
+function addToCart(id){
+  const product=products.find(p=>p.id===id);
+  const qty=parseInt(document.getElementById('qty-'+id).value)||1;
+  const existing=cart.find(c=>c.id===id);
+  if(existing){existing.qty+=qty;} else {cart.push({...product,qty});}
+  renderCart();
+}
+
+function removeFromCart(idx){ cart.splice(idx,1); renderCart(); }
+
+function checkout(){
+  if(cart.length===0){alert('Cart empty');return;}
+  const total=cart.reduce((s,i)=>s+i.qty*i.price,0);
+  ledger.push({time:Date.now(),items:cart,total});
+  cart=[];
+  renderCart();
+  renderLedger();
+}
+
+renderProducts();
+renderCart();
+renderLedger();
+</script>
+</body>
+</html>
