@@ -1,85 +1,155 @@
 <!doctype html>
 <html lang="en">
 <head>
-  <meta charset="utf-8"/>
-  <meta name="viewport" content="width=device-width,initial-scale=1"/>
-  <title>DODLA Milk Diary - Product Grid</title>
-  <style>
-    body { margin:0; font-family:Segoe UI, Arial, sans-serif; background:#f7fbff; }
-    header { background:linear-gradient(90deg,#0f62fe,#6a11cb); color:#fff; padding:15px; text-align:center; }
-    h1 { margin:0; font-size:22px; }
-    .wrap { max-width:1200px; margin:auto; padding:15px; }
-    .grid { display:grid; grid-template-columns:repeat(auto-fill,minmax(180px,1fr)); gap:16px; }
-    .card { background:#fff; border-radius:12px; box-shadow:0 4px 10px rgba(0,0,0,0.05); overflow:hidden; display:flex; flex-direction:column; }
-    .card img { width:100%; height:120px; object-fit:cover; }
-    .card-body { padding:10px; flex:1; display:flex; flex-direction:column; justify-content:space-between; }
-    .name { font-weight:600; font-size:14px; margin-bottom:4px; }
-    .price { color:#0f62fe; font-weight:700; margin-bottom:6px; }
-    .actions { display:flex; gap:6px; }
-    .actions input { width:50px; padding:5px; border:1px solid #ddd; border-radius:6px; text-align:center; }
-    .actions button { flex:1; background:#0f62fe; color:#fff; border:none; padding:6px; border-radius:6px; cursor:pointer; }
-    .actions button:hover { background:#0c4ed6; }
-    .cart, .ledger { margin-top:25px; background:#fff; border-radius:12px; padding:15px; box-shadow:0 4px 10px rgba(0,0,0,0.05); }
-    table { width:100%; border-collapse:collapse; }
-    th,td { border-bottom:1px solid #eee; padding:8px; font-size:14px; text-align:left; }
-    tfoot td { font-weight:700; }
-  </style>
+<meta charset="utf-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1"/>
+<title>DODLA Milk Diary - Product Grid</title>
+<style>
+  body { margin:0; font-family:Segoe UI, Arial, sans-serif; background:#f7fbff; }
+  header { background:linear-gradient(90deg,#0f62fe,#6a11cb); color:#fff; padding:15px; text-align:center; }
+  h1 { margin:0; font-size:22px; }
+  .wrap { max-width:1200px; margin:auto; padding:15px; }
+  .grid { display:grid; grid-template-columns:repeat(auto-fill,minmax(180px,1fr)); gap:16px; }
+  .card { background:#fff; border-radius:12px; box-shadow:0 4px 10px rgba(0,0,0,0.05); overflow:hidden; display:flex; flex-direction:column; }
+  .card img { width:100%; height:120px; object-fit:cover; }
+  .card-body { padding:10px; flex:1; display:flex; flex-direction:column; justify-content:space-between; }
+  .name { font-weight:600; font-size:14px; margin-bottom:4px; }
+  .price { color:#0f62fe; font-weight:700; margin-bottom:6px; }
+  .actions { display:flex; gap:6px; }
+  .actions input { width:50px; padding:5px; border:1px solid #ddd; border-radius:6px; text-align:center; }
+  .actions button { flex:1; background:#0f62fe; color:#fff; border:none; padding:6px; border-radius:6px; cursor:pointer; transition: transform 0.2s; }
+  .actions button:hover { background:#0c4ed6; }
+  .animate { animation: pop 0.5s ease; }
+  @keyframes pop {
+    0% { transform: scale(1); background:#0f62fe; }
+    50% { transform: scale(1.2); background:#45b649; }
+    100% { transform: scale(1); background:#0f62fe; }
+  }
+
+  .calendar-container { margin:15px 0; display:flex; align-items:center; gap:10px; }
+  .calendar-container label { font-weight:600; }
+
+  table { width:100%; border-collapse:collapse; }
+  th,td { border-bottom:1px solid #eee; padding:8px; font-size:14px; text-align:left; }
+  tfoot td { font-weight:700; }
+
+  #floatingCartBtn { display:none; position:fixed; bottom:20px; right:20px; background:#0f62fe; color:#fff; border:none; border-radius:50px; padding:12px 20px; font-weight:700; cursor:pointer; box-shadow:0 4px 10px rgba(0,0,0,0.2); z-index:1000; }
+  .modal { display:none; position:fixed; top:0; left:0; width:100%; height:100%; background:#fff; z-index:1001; overflow-y:auto; padding:20px; }
+  .modal h3 { display:flex; justify-content:space-between; align-items:center; }
+  .modal h3 button { background:red; color:#fff; border:none; border-radius:6px; padding:4px 8px; cursor:pointer; }
+
+  @media(max-width:768px){
+    #floatingCartBtn { display:block; }
+    .cart, .ledger { display:none; }
+  }
+
+  .cart, .ledger { margin-top:25px; background:#fff; border-radius:12px; padding:15px; box-shadow:0 4px 10px rgba(0,0,0,0.05); }
+  .export-btns { margin-top:10px; display:flex; gap:10px; }
+  .export-btns button { background:#6a11cb; color:#fff; border:none; padding:6px 10px; border-radius:6px; cursor:pointer; }
+
+</style>
 </head>
 <body>
-  <header>
-    <h1>DODLA Milk Diary</h1>
-    <p>Click Add under each product to add into Cart</p>
-  </header>
+<header>
+  <h1>DODLA Milk Diary</h1>
+  <p>Click Add under each product to add into Cart</p>
+</header>
 
-  <div class="wrap">
-    <h2>Products</h2>
-    <div class="grid" id="productGrid"></div>
-
-    <div class="cart">
-      <h3>Cart</h3>
-      <table id="cartTable">
-        <thead><tr><th>Item</th><th>Qty</th><th>Price</th><th>Total</th><th></th></tr></thead>
-        <tbody></tbody>
-        <tfoot><tr><td colspan="3">Subtotal</td><td id="cartTotal">0</td><td></td></tr></tfoot>
-      </table>
-      <button onclick="checkout()">Checkout (Save)</button>
-    </div>
-
-    <div class="ledger">
-      <h3>Sales Ledger</h3>
-      <table id="ledgerTable">
-        <thead><tr><th>Time</th><th>Items</th><th>Amount</th></tr></thead>
-        <tbody></tbody>
-        <tfoot><tr><td colspan="2">Total Today</td><td id="ledgerTotal">0</td></tr></tfoot>
-      </table>
-    </div>
+<div class="wrap">
+  <!-- Calendar Heading -->
+  <div class="calendar-container">
+    <label for="ledgerDate">Select Date:</label>
+    <input type="date" id="ledgerDate" />
+    <button onclick="downloadLedgerByDate()">Download Ledger</button>
   </div>
 
-<script>
-const sampleProducts = [
-  "Milk - 200ml", "Milk - 500ml", "Milk - 1L", "Milk - 2L",
-  "Curd - 200g", "Curd - 500g", "Curd - 1kg",
-  "Butter - 100g", "Butter - 500g",
-  "Paneer - 100g", "Paneer - 200g",
-  "Ghee - 200ml", "Ghee - 500ml",
-  "Flavored Milk - Badam", "Flavored Milk - Strawberry", "Flavored Milk - Chocolate",
-  "Lassi - Sweet", "Lassi - Salt", "Buttermilk - 200ml", "Cheese - 100g"
-];
+  <h2>Products</h2>
+  <div class="grid" id="productGrid"></div>
 
-// assign random prices
-const products = sampleProducts.map((name,i)=>({
-  id:i+1,
-  name,
-  price: (Math.random()*50+10).toFixed(0),
-  img:`https://picsum.photos/200/150?random=${i+1}`
-}));
+  <div class="cart">
+    <h3>Cart</h3>
+    <table id="cartTable">
+      <thead><tr><th>Item</th><th>Qty</th><th>Price</th><th>Total</th><th></th></tr></thead>
+      <tbody></tbody>
+      <tfoot><tr><td colspan="3">Subtotal</td><td id="cartTotal">0</td><td></td></tr></tfoot>
+    </table>
+    <button onclick="checkout()">Checkout (Save)</button>
+  </div>
+
+  <div class="ledger">
+    <h3>Sales Ledger</h3>
+    <table id="ledgerTable">
+      <thead><tr><th>Time</th><th>Items</th><th>Amount</th></tr></thead>
+      <tbody></tbody>
+      <tfoot><tr><td colspan="2">Total Today</td><td id="ledgerTotal">0</td></tr></tfoot>
+    </table>
+    <div class="export-btns">
+      <button onclick="exportExcel()">Export Excel</button>
+      <button onclick="exportPDF()">Export PDF</button>
+    </div>
+  </div>
+</div>
+
+<button id="floatingCartBtn" onclick="toggleCartModal()">Cart 🛒</button>
+
+<div class="modal" id="cartModal">
+  <h3>Cart <button onclick="toggleCartModal()">Close</button></h3>
+  <table id="cartTableMobile">
+    <thead><tr><th>Item</th><th>Qty</th><th>Price</th><th>Total</th><th></th></tr></thead>
+    <tbody></tbody>
+    <tfoot><tr><td colspan="3">Subtotal</td><td id="cartTotalMobile">0</td><td></td></tr></tfoot>
+  </table>
+  <button onclick="checkout()">Checkout (Save)</button>
+</div>
+
+<div class="modal" id="ledgerModal">
+  <h3>Sales Ledger <button onclick="toggleLedgerModal()">Close</button></h3>
+  <table id="ledgerTableMobile">
+    <thead><tr><th>Time</th><th>Items</th><th>Amount</th></tr></thead>
+    <tbody></tbody>
+    <tfoot><tr><td colspan="2">Total Today</td><td id="ledgerTotalMobile">0</td></tr></tfoot>
+  </table>
+  <div class="export-btns">
+    <button onclick="exportExcel()">Export Excel</button>
+    <button onclick="exportPDF()">Export PDF</button>
+  </div>
+</div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+
+<script>
+const products = [
+  {id:1,name:"Milk - 200ml",price:20,img:"https://picsum.photos/200/150?random=1"},
+  {id:2,name:"Milk - 500ml",price:35,img:"https://picsum.photos/200/150?random=2"},
+  {id:3,name:"Milk - 1L",price:60,img:"https://picsum.photos/200/150?random=3"},
+  {id:4,name:"Milk - 2L",price:110,img:"https://picsum.photos/200/150?random=4"},
+  {id:5,name:"Curd - 200g",price:25,img:"https://picsum.photos/200/150?random=5"},
+  {id:6,name:"Curd - 500g",price:50,img:"https://picsum.photos/200/150?random=6"},
+  {id:7,name:"Curd - 1kg",price:95,img:"https://picsum.photos/200/150?random=7"},
+  {id:8,name:"Butter - 100g",price:40,img:"https://picsum.photos/200/150?random=8"},
+  {id:9,name:"Butter - 500g",price:180,img:"https://picsum.photos/200/150?random=9"},
+  {id:10,name:"Paneer - 100g",price:60,img:"https://picsum.photos/200/150?random=10"},
+  {id:11,name:"Paneer - 200g",price:110,img:"https://picsum.photos/200/150?random=11"},
+  {id:12,name:"Ghee - 200ml",price:150,img:"https://picsum.photos/200/150?random=12"},
+  {id:13,name:"Ghee - 500ml",price:350,img:"https://picsum.photos/200/150?random=13"},
+  {id:14,name:"Flavored Milk - Badam",price:35,img:"https://picsum.photos/200/150?random=14"},
+  {id:15,name:"Flavored Milk - Strawberry",price:35,img:"https://picsum.photos/200/150?random=15"},
+  {id:16,name:"Flavored Milk - Chocolate",price:35,img:"https://picsum.photos/200/150?random=16"},
+  {id:17,name:"Lassi - Sweet",price:30,img:"https://picsum.photos/200/150?random=17"},
+  {id:18,name:"Lassi - Salt",price:30,img:"https://picsum.photos/200/150?random=18"},
+  {id:19,name:"Buttermilk - 200ml",price:20,img:"https://picsum.photos/200/150?random=19"},
+  {id:20,name:"Cheese - 100g",price:80,img:"https://picsum.photos/200/150?random=20"}
+];
 
 let cart = [];
 let ledger = [];
+let dailyLedger = {};
 
+// Render
 function renderProducts(){
-  const grid = document.getElementById('productGrid');
-  grid.innerHTML = '';
+  const grid=document.getElementById('productGrid');
+  grid.innerHTML='';
   products.forEach(p=>{
     const div=document.createElement('div');
     div.className='card';
@@ -92,70 +162,121 @@ function renderProducts(){
         </div>
         <div class="actions">
           <input type="number" min="1" value="1" id="qty-${p.id}">
-          <button onclick="addToCart(${p.id})">Add</button>
+          <button id="btn-${p.id}" onclick="addToCart(${p.id})">Add</button>
         </div>
-      </div>
-    `;
+      </div>`;
     grid.appendChild(div);
   });
 }
 
 function renderCart(){
-  const tbody=document.querySelector('#cartTable tbody');
+  renderCartTable('cartTable','cartTotal');
+  renderCartTable('cartTableMobile','cartTotalMobile');
+}
+function renderCartTable(tableId,totalId){
+  const tbody=document.querySelector(`#${tableId} tbody`);
   tbody.innerHTML='';
   let total=0;
   cart.forEach((item,idx)=>{
+    const line=item.qty*item.price; total+=line;
     const row=document.createElement('tr');
-    const line=item.qty*item.price;
-    total+=line;
-    row.innerHTML=`
-      <td>${item.name}</td>
-      <td>${item.qty}</td>
-      <td>${item.price}</td>
-      <td>${line}</td>
-      <td><button onclick="removeFromCart(${idx})">X</button></td>`;
+    row.innerHTML=`<td>${item.name}</td><td>${item.qty}</td><td>${item.price}</td><td>${line}</td><td><button onclick="removeFromCart(${idx})">X</button></td>`;
     tbody.appendChild(row);
   });
-  document.getElementById('cartTotal').innerText=total;
+  document.getElementById(totalId).innerText=total;
 }
 
 function renderLedger(){
-  const tbody=document.querySelector('#ledgerTable tbody');
-  tbody.innerHTML='';
-  let sum=0;
+  renderLedgerTable('ledgerTable','ledgerTotal');
+  renderLedgerTable('ledgerTableMobile','ledgerTotalMobile');
+}
+function renderLedgerTable(tableId,totalId){
+  const tbody=document.querySelector(`#${tableId} tbody`);
+  tbody.innerHTML=''; let sum=0;
   ledger.forEach(entry=>{
     const row=document.createElement('tr');
     sum+=entry.total;
-    row.innerHTML=`<td>${new Date(entry.time).toLocaleString()}</td>
-                   <td>${entry.items.map(i=>`${i.name} x${i.qty}`).join(', ')}</td>
-                   <td>${entry.total}</td>`;
+    row.innerHTML=`<td>${new Date(entry.time).toLocaleString()}</td><td>${entry.items.map(i=>i.name+' x'+i.qty).join(', ')}</td><td>${entry.total}</td>`;
     tbody.appendChild(row);
   });
-  document.getElementById('ledgerTotal').innerText=sum;
+  document.getElementById(totalId).innerText=sum;
 }
 
 function addToCart(id){
   const product=products.find(p=>p.id===id);
   const qty=parseInt(document.getElementById('qty-'+id).value)||1;
   const existing=cart.find(c=>c.id===id);
-  if(existing){existing.qty+=qty;} else {cart.push({...product,qty});}
+  if(existing){existing.qty+=qty;}else{cart.push({...product,qty});}
   renderCart();
+  const btn=document.getElementById('btn-'+id);
+  btn.classList.add('animate'); setTimeout(()=>btn.classList.remove('animate'),500);
 }
-
 function removeFromCart(idx){ cart.splice(idx,1); renderCart(); }
 
 function checkout(){
   if(cart.length===0){alert('Cart empty');return;}
   const total=cart.reduce((s,i)=>s+i.qty*i.price,0);
   ledger.push({time:Date.now(),items:cart,total});
-  cart=[];
-  renderCart();
-  renderLedger();
+  const today=new Date().toISOString().slice(0,10);
+  if(!dailyLedger[today]) dailyLedger[today]=[];
+  dailyLedger[today].push(...cart.map(i=>({...i,time:Date.now()})));
+  cart=[]; renderCart(); renderLedger();
 }
 
-renderProducts();
-renderCart();
-renderLedger();
+// Automatic rollover at midnight
+setInterval(()=>{
+  const now=new Date();
+  if(now.getHours()===0 && now.getMinutes()===0 && now.getSeconds()===0){
+    cart=[]; ledger=[]; renderCart(); renderLedger();
+  }
+},1000);
+
+// Exports
+function exportExcel(){ const today=new Date().toISOString().slice(0,10); downloadExcel(today); }
+function downloadLedgerByDate(){
+  const selected=document.getElementById('ledgerDate').value;
+  if(!selected || !dailyLedger[selected]) { alert("No data for selected date"); return; }
+  downloadExcel(selected);
+}
+function downloadExcel(date){
+  const data=dailyLedger[date]||[];
+  const ws=XLSX.utils.json_to_sheet(data.map(l=>({
+    Time:new Date(l.time).toLocaleString(),
+    Item:l.name,
+    Qty:l.qty,
+    Price:l.price,
+    Total:l.qty*l.price
+  })));
+  const wb=XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb, ws, "Ledger");
+  XLSX.writeFile(wb, `ledger_${date}.xlsx`);
+}
+function exportPDF(){
+  const { jsPDF }=window.jspdf;
+  const doc=new jsPDF();
+  const today=new Date().toISOString().slice(0,10);
+  const data=dailyLedger[today]||[];
+  doc.text(`Sales Ledger - ${today}`,10,10);
+  // table headers
+  doc.setFontSize(10); let startY=20;
+  doc.text("Time",10,startY); doc.text("Product",50,startY); doc.text("Qty",110,startY); doc.text("Price",130,startY); doc.text("Total",150,startY);
+  startY+=6; doc.setLineWidth(0.1); doc.line(10,startY-2,190,startY-2);
+  data.forEach(l=>{
+    doc.text(new Date(l.time).toLocaleTimeString(),10,startY);
+    doc.text(l.name,50,startY);
+    doc.text(l.qty.toString(),110,startY);
+    doc.text("₹"+l.price,130,startY);
+    doc.text("₹"+(l.price*l.qty),150,startY);
+    startY+=6;
+  });
+  doc.save(`ledger_${today}.pdf`);
+}
+
+// Mobile modals
+function toggleCartModal(){ document.getElementById('cartModal').style.display=document.getElementById('cartModal').style.display==='block'?'none':'block'; }
+function toggleLedgerModal(){ document.getElementById('ledgerModal').style.display=document.getElementById('ledgerModal').style.display==='block'?'none':'block'; }
+
+renderProducts(); renderCart(); renderLedger();
 </script>
 </body>
 </html>
