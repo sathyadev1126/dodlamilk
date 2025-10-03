@@ -3,14 +3,12 @@
 <head>
 <meta charset="utf-8"/>
 <meta name="viewport" content="width=device-width,initial-scale=1"/>
-<title>DODLA Milk Diary - Product Grid</title>
+<title>DODLA Milk Diary - Sales Summary</title>
 <style>
 body { margin:0; font-family:Segoe UI, Arial, sans-serif; background:#f7fbff; }
 header { background:linear-gradient(90deg,#0f62fe,#6a11cb); color:#fff; padding:15px; text-align:center; }
 h1 { margin:0; font-size:22px; }
 .wrap { max-width:1200px; margin:auto; padding:15px; display:grid; grid-template-columns:2fr 1fr; gap:20px; }
-
-/* Product grid */
 .grid { display:grid; grid-template-columns:repeat(auto-fill,minmax(180px,1fr)); gap:16px; }
 .card { background:#fff; border-radius:12px; box-shadow:0 4px 10px rgba(0,0,0,0.05); overflow:hidden; display:flex; flex-direction:column; }
 .card img { width:100%; height:120px; object-fit:cover; }
@@ -19,218 +17,269 @@ h1 { margin:0; font-size:22px; }
 .price { color:#0f62fe; font-weight:700; margin-bottom:6px; }
 .actions { display:flex; gap:6px; }
 .actions input { width:50px; padding:5px; border:1px solid #ddd; border-radius:6px; text-align:center; }
-.actions button { flex:1; background:#0f62fe; color:#fff; border:none; padding:6px; border-radius:6px; cursor:pointer; transition: transform 0.2s; }
-.actions button:hover { background:#0c4ed6; }
+.actions button { flex:1; background:#0f62fe; color:#fff; border:none; padding:6px; border-radius:6px; cursor:pointer; transition: all 0.3s ease; }
+.actions button:hover { background:#0c4ed6; transform: scale(1.05); }
 .animate { animation: pop 0.5s ease; }
-@keyframes pop {0% { transform: scale(1); background:#0f62fe; }50% { transform: scale(1.2); background:#45b649; }100% { transform: scale(1); background:#0f62fe; }}
-
-/* Checkout box */
-.checkout-box { background:#fff; border-radius:12px; padding:15px; box-shadow:0 4px 10px rgba(0,0,0,0.05); margin-bottom:15px; }
-.checkout-box h3 { margin-top:0; color:#0f62fe; }
-.checkout-box ul { padding-left:20px; font-size:14px; margin:0; }
-
+@keyframes pop {
+  0% { transform: scale(1); }
+  50% { transform: scale(1.2); }
+  100% { transform: scale(1); }
+}
 table { width:100%; border-collapse:collapse; margin-top:10px; }
-th,td { border-bottom:1px solid #eee; padding:6px; font-size:14px; text-align:left; }
-
+th,td { border-bottom:1px solid #eee; padding:8px; font-size:14px; text-align:left; }
+tfoot td { font-weight:700; }
+.checkout-box { margin-top:20px; background:#fff; border-radius:12px; padding:15px; box-shadow:0 4px 10px rgba(0,0,0,0.05); }
 .export-btns { margin-top:10px; display:flex; gap:10px; }
 .export-btns button { background:#6a11cb; color:#fff; border:none; padding:6px 10px; border-radius:6px; cursor:pointer; }
-
+h3 { margin-top:0; color:#0f62fe; }
+.calendar-container { margin-top:20px; display:flex; gap:10px; align-items:center; }
 @media(max-width:768px){ .wrap { grid-template-columns:1fr; } }
 </style>
 </head>
 <body>
 <header>
   <h1>DODLA Milk Diary</h1>
-  <p>Click Add under each product to checkout directly. Track sales from morning to night.</p>
+  <p>Click Add to add products, confirm to checkout.</p>
 </header>
 
 <div class="wrap">
+  <!-- Left Column -->
   <div>
     <h2>Products</h2>
     <div class="grid" id="productGrid"></div>
+
+    <div class="checkout-box">
+      <h3>Today's Sales Summary</h3>
+      <table>
+        <thead>
+          <tr><th>Time</th><th>Product Name</th><th>Qty</th><th>Price</th><th>Total</th></tr>
+        </thead>
+        <tbody id="todaySalesBody"></tbody>
+        <tfoot>
+          <tr><td colspan="4">Total</td><td id="todayTotal">0</td></tr>
+        </tfoot>
+      </table>
+    </div>
+
+    <div class="checkout-box">
+      <h3>Daily Final Product Count</h3>
+      <table>
+        <thead><tr id="finalHeaderRow"></tr></thead>
+        <tbody><tr id="finalQtyRow"></tr></tbody>
+      </table>
+    </div>
+
+    <div class="calendar-container">
+      <label for="selectDate">Select Date:</label>
+      <input type="date" id="selectDate"/>
+      <button onclick="loadByDate()">Load</button>
+      <button onclick="exportExcel()">Download Today Excel</button>
+      <button onclick="exportPDF()">Download Today PDF</button>
+    </div>
   </div>
 
-  <div class="checkout-box" id="checkoutBox">
-    <h3>Last 5 Checkouts</h3>
-    <p>No checkout yet.</p>
-  </div>
-</div>
-
-<div class="checkout-box" style="margin:15px;">
-  <h3>Today's Sales Details</h3>
-  <table>
-    <thead>
-      <tr>
-        <th>Date & Time</th>
-        <th>Product</th>
-        <th>Qty</th>
-        <th>Amount</th>
-      </tr>
-    </thead>
-    <tbody id="todaySalesBody"></tbody>
-    <tfoot>
-      <tr>
-        <td colspan="3" style="font-weight:bold;">Total</td>
-        <td style="font-weight:bold;" id="todayTotal">0</td>
-      </tr>
-    </tfoot>
-  </table>
-  <div class="export-btns">
-    <label>Select Date: <input type="date" id="ledgerDate"></label>
-    <button onclick="downloadLedgerByDate()">Download Ledger</button>
-    <button onclick="exportTodayExcel()">Export Today Excel</button>
-    <button onclick="exportTodayPDF()">Export Today PDF</button>
+  <!-- Right Column: Last 5 Checkouts -->
+  <div>
+    <div class="checkout-box" id="lastCheckouts">
+      <h3>Last 5 Checkouts</h3>
+      <p>No checkout yet.</p>
+    </div>
   </div>
 </div>
 
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
-
 <script>
-const products=[
-{id:1,name:"Milk - 200ml",price:20,img:"https://picsum.photos/200/150?random=1"},
-{id:2,name:"Milk - 500ml",price:35,img:"https://picsum.photos/200/150?random=2"},
-{id:3,name:"Milk - 1L",price:60,img:"https://picsum.photos/200/150?random=3"},
-{id:4,name:"Milk - 2L",price:110,img:"https://picsum.photos/200/150?random=4"},
-{id:5,name:"Curd - 200g",price:25,img:"https://picsum.photos/200/150?random=5"},
-{id:6,name:"Curd - 500g",price:50,img:"https://picsum.photos/200/150?random=6"},
-{id:7,name:"Curd - 1kg",price:95,img:"https://picsum.photos/200/150?random=7"},
-{id:8,name:"Butter - 100g",price:40,img:"https://picsum.photos/200/150?random=8"},
-{id:9,name:"Butter - 500g",price:180,img:"https://picsum.photos/200/150?random=9"},
-{id:10,name:"Paneer - 100g",price:60,img:"https://picsum.photos/200/150?random=10"}
+const products = [
+  {id:1,name:"Milk - 200ml",price:20,img:"https://picsum.photos/200/150?random=1"},
+  {id:2,name:"Milk - 500ml",price:35,img:"https://picsum.photos/200/150?random=2"},
+  {id:3,name:"Milk - 1L",price:60,img:"https://picsum.photos/200/150?random=3"},
+  {id:4,name:"Milk - 2L",price:110,img:"https://picsum.photos/200/150?random=4"},
+  {id:5,name:"Curd - 200g",price:25,img:"https://picsum.photos/200/150?random=5"},
+  {id:6,name:"Curd - 500g",price:50,img:"https://picsum.photos/200/150?random=6"},
+  {id:7,name:"Curd - 1kg",price:95,img:"https://picsum.photos/200/150?random=7"},
+  {id:8,name:"Butter - 100g",price:40,img:"https://picsum.photos/200/150?random=8"},
+  {id:9,name:"Butter - 500g",price:180,img:"https://picsum.photos/200/150?random=9"},
+  {id:10,name:"Paneer - 100g",price:60,img:"https://picsum.photos/200/150?random=10"}
 ];
 
 let dailyLedger = {};
 let lastCheckouts = [];
+let currentDate = new Date().toISOString().slice(0,10);
 
+// LocalStorage
 function saveData(){
   localStorage.setItem("dailyLedger", JSON.stringify(dailyLedger));
   localStorage.setItem("lastCheckouts", JSON.stringify(lastCheckouts));
 }
-
 function loadData(){
-  dailyLedger = JSON.parse(localStorage.getItem("dailyLedger"))||{};
-  lastCheckouts = JSON.parse(localStorage.getItem("lastCheckouts"))||[];
-  updateCheckoutBox();
-  updateTodayTotal();
+  dailyLedger = JSON.parse(localStorage.getItem("dailyLedger")) || {};
+  lastCheckouts = JSON.parse(localStorage.getItem("lastCheckouts")) || [];
+  renderLastCheckouts();
+  updateDailySummary(currentDate);
+  updateFinalSummary(currentDate);
 }
 
+// Render Products
 function renderProducts(){
-  const grid=document.getElementById('productGrid'); grid.innerHTML='';
+  const grid=document.getElementById('productGrid');
+  grid.innerHTML='';
   products.forEach(p=>{
-    const div=document.createElement('div'); div.className='card';
-    div.innerHTML=`
-      <img src="${p.img}" alt="${p.name}">
+    const div=document.createElement('div');
+    div.className='card';
+    div.innerHTML=`<img src="${p.img}" alt="${p.name}">
       <div class="card-body">
         <div><div class="name">${p.name}</div><div class="price">₹ ${p.price}</div></div>
         <div class="actions">
           <input type="number" min="1" value="1" id="qty-${p.id}">
-          <button id="btn-${p.id}" onclick="checkoutItem(${p.id})">Add</button>
+          <button id="btn-${p.id}" onclick="addProduct(${p.id})">Add</button>
         </div>
       </div>`;
     grid.appendChild(div);
   });
 }
 
-function checkoutItem(id){
-  const product = products.find(p=>p.id===id);
-  const qty = parseInt(document.getElementById('qty-'+id).value)||1;
+// Add product with confirmation, reset, and animation
+function addProduct(id){
+  const product = products.find(p => p.id === id);
+  const qtyInput = document.getElementById('qty-' + id);
+  const qty = parseInt(qtyInput.value) || 1;
+  if(!confirm(`Add ${qty} x ${product.name} to checkout?`)) return;
+
   const time = Date.now();
   const today = new Date().toISOString().slice(0,10);
-
   if(!dailyLedger[today]) dailyLedger[today] = [];
-  dailyLedger[today].push({...product, qty, time});
+  dailyLedger[today].push({id: product.id, name: product.name, qty, price: product.price, time});
 
-  lastCheckouts.unshift({time, items:[{...product, qty}], total:product.price*qty});
-  if(lastCheckouts.length>5) lastCheckouts.pop();
+  lastCheckouts.unshift({time, items:[{...product, qty}], total: qty*product.price});
+  if(lastCheckouts.length > 5) lastCheckouts.pop();
 
-  saveData(); updateCheckoutBox(); updateTodayTotal();
-
-  document.getElementById('btn-'+id).classList.add('animate'); 
+  qtyInput.value = 1; 
+  document.getElementById('btn-'+id).classList.add('animate');
   setTimeout(()=>document.getElementById('btn-'+id).classList.remove('animate'),500);
+
+  saveData();
+  renderLastCheckouts();
+  updateDailySummary(currentDate);
+  updateFinalSummary(currentDate);
 }
 
-function updateCheckoutBox(){
-  const box=document.getElementById('checkoutBox');
-  if(lastCheckouts.length===0){ box.innerHTML="<h3>Last 5 Checkouts</h3><p>No checkout yet.</p>"; return; }
-  box.innerHTML=`<h3>Last 5 Checkouts</h3>`+
-    lastCheckouts.map(c=>`<p><b>${new Date(c.time).toLocaleString()}</b></p>
-      <ul>${c.items.map(i=>`<li>${i.name} x${i.qty} = ₹${i.qty*i.price}</li>`).join('')}</ul>
-      <p>Total: ₹${c.total}</p><hr>`).join('');
+// Render Last 5 Checkouts
+function renderLastCheckouts(){
+  const box=document.getElementById('lastCheckouts');
+  if(lastCheckouts.length===0){box.innerHTML="<h3>Last 5 Checkouts</h3><p>No checkout yet.</p>"; return;}
+  box.innerHTML="<h3>Last 5 Checkouts</h3>";
+  lastCheckouts.forEach(co=>{
+    const ul = document.createElement('ul');
+    co.items.forEach(i=>{const li=document.createElement('li'); li.innerText=`${i.name} x${i.qty} = ₹${i.qty*i.price}`; ul.appendChild(li);});
+    const p = document.createElement('p'); p.innerHTML=`Time: ${new Date(co.time).toLocaleTimeString()} | Total: ₹${co.total}`;
+    box.appendChild(ul); box.appendChild(p);
+  });
 }
 
-function updateTodayTotal(){
-  const today = new Date().toISOString().slice(0,10);
-  const data = dailyLedger[today]||[];
+// Update Sales Summary by Date (merge same product within same minute)
+function updateDailySummary(date){
+  currentDate = date || new Date().toISOString().slice(0,10);
+  document.getElementById('selectDate').value = currentDate;
+  const data = dailyLedger[currentDate] || [];
   const tbody = document.getElementById('todaySalesBody');
   tbody.innerHTML = '';
   let total = 0;
+  const summary = {};
   data.forEach(item=>{
-    const row = document.createElement('tr');
-    const amount = item.price * item.qty;
-    total += amount;
-    row.innerHTML = `<td>${new Date(item.time).toLocaleString()}</td>
-                     <td>${item.name}</td>
-                     <td>${item.qty}</td>
-                     <td>₹${amount}</td>`;
+    const dateObj = new Date(item.time);
+    const hhmm = dateObj.getHours()+":"+dateObj.getMinutes(); // same minute
+    const key = item.name+'_'+hhmm;
+    if(summary[key]){
+      summary[key].qty += item.qty;
+      summary[key].amount += item.qty*item.price;
+    } else summary[key]={name:item.name,qty:item.qty,price:item.price,amount:item.qty*item.price,time:dateObj};
+  });
+  Object.values(summary).forEach(item=>{
+    total += item.amount;
+    const row=document.createElement('tr');
+    row.innerHTML=`<td>${item.time.toLocaleTimeString()}</td><td>${item.name}</td><td>${item.qty}</td><td>₹${item.price}</td><td>₹${item.amount}</td>`;
     tbody.appendChild(row);
   });
-  document.getElementById('todayTotal').innerText = total;
+  document.getElementById('todayTotal').innerText=total;
 }
 
-// Export
-function downloadLedgerByDate(){
-  const selected = document.getElementById('ledgerDate').value;
-  if(!selected || !dailyLedger[selected]) { alert("No data for selected date"); return; }
-  downloadExcel(selected);
+// Update Final Product Count
+function updateFinalSummary(date){
+  const data = dailyLedger[date || currentDate] || [];
+  const headerRow = document.getElementById('finalHeaderRow');
+  const qtyRow = document.getElementById('finalQtyRow');
+  headerRow.innerHTML=''; qtyRow.innerHTML='';
+  const countMap={};
+  data.forEach(i=>{ countMap[i.name]=(countMap[i.name]||0)+i.qty; });
+  Object.keys(countMap).forEach(name=>{
+    const th=document.createElement('th'); th.innerText=name; headerRow.appendChild(th);
+    const td=document.createElement('td'); td.innerText=countMap[name]; qtyRow.appendChild(td);
+  });
 }
 
-function exportTodayExcel(){ downloadExcel(new Date().toISOString().slice(0,10)); }
-function exportTodayPDF(){ exportPDF(new Date().toISOString().slice(0,10)); }
+// Load by calendar date
+function loadByDate(){
+  const selected = document.getElementById('selectDate').value;
+  if(!selected) { alert("Select a date!"); return; }
+  updateDailySummary(selected);
+  updateFinalSummary(selected);
+}
 
-function downloadExcel(date){
-  const data = dailyLedger[date]||[];
-  const ws = XLSX.utils.json_to_sheet(data.map(l=>({
-    Time:new Date(l.time).toLocaleString(),
-    Item:l.name,
-    Qty:l.qty,
-    Price:l.price,
-    Total:l.qty*l.price
+// Exports
+function exportExcel(){
+  const data = dailyLedger[currentDate] || [];
+  if(data.length===0){alert("No data for this date"); return;}
+  const ws=XLSX.utils.json_to_sheet(data.map(i=>({
+    Time:new Date(i.time).toLocaleString(),
+    Item:i.name,
+    Qty:i.qty,
+    Price:i.price,
+    Total:i.qty*i.price
   })));
-  const wb = XLSX.utils.book_new(); XLSX.utils.book_append_sheet(wb, ws, "Ledger");
-  XLSX.writeFile(wb, `ledger_${date}.xlsx`);
+  const wb=XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb, ws, "Sales");
+  XLSX.writeFile(wb, `sales_${currentDate}.xlsx`);
 }
 
-function exportPDF(date){
+function exportPDF(){
   const { jsPDF } = window.jspdf;
   const doc = new jsPDF();
-  const data = dailyLedger[date]||[];
-  doc.text(`Sales Ledger - ${date}`, 10, 10);
-  doc.setFontSize(10); let startY=20;
+  const data = dailyLedger[currentDate] || [];
+  if(data.length===0){alert("No data for this date"); return;}
+  doc.text(`Sales Ledger - ${currentDate}`,10,10);
+  doc.setFontSize(10);
+  let startY = 20;
   doc.text("Time",10,startY); doc.text("Product",50,startY); doc.text("Qty",110,startY); doc.text("Price",130,startY); doc.text("Total",150,startY);
   startY+=6; doc.setLineWidth(0.1); doc.line(10,startY-2,190,startY-2);
-  data.forEach(l=>{
-    doc.text(new Date(l.time).toLocaleTimeString(),10,startY);
-    doc.text(l.name,50,startY);
-    doc.text(l.qty.toString(),110,startY);
-    doc.text("₹"+l.price,130,startY);
-    doc.text("₹"+(l.price*l.qty),150,startY);
+  data.forEach(item=>{
+    const dateObj = new Date(item.time);
+    doc.text(dateObj.toLocaleTimeString(),10,startY);
+    doc.text(item.name,50,startY);
+    doc.text(item.qty.toString(),110,startY);
+    doc.text("₹"+item.price,130,startY);
+    doc.text("₹"+(item.price*item.qty),150,startY);
     startY+=6;
   });
-  doc.save(`ledger_${date}.pdf`);
+  doc.save(`sales_${currentDate}.pdf`);
 }
 
-// --- Midnight reset ---
+// Midnight reset
 setInterval(()=>{
   const now = new Date();
   if(now.getHours()===0 && now.getMinutes()===0 && now.getSeconds()===0){
-    lastCheckouts = [];
+    currentDate = new Date().toISOString().slice(0,10);
     saveData();
-    updateCheckoutBox(); updateTodayTotal();
+    updateDailySummary(currentDate);
+    updateFinalSummary(currentDate);
   }
 },1000);
 
-loadData(); renderProducts();
+// Initialize
+loadData();
+renderProducts();
+updateDailySummary(currentDate);
+updateFinalSummary(currentDate);
 </script>
 </body>
 </html>
