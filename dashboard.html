@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8"/>
 <meta name="viewport" content="width=device-width,initial-scale=1"/>
-<title>Dashboard — Stock, Sales & Remaining</title>
+<title>Dashboard — Stock, Sales & Remaining (with Day Calendar)</title>
 <style>
   :root{--bg:#f6f7fb;--card:#fff;--muted:#6b7280}
   body{font-family:Inter,Arial,Helvetica,sans-serif;margin:12px;background:var(--bg);color:#111}
@@ -28,6 +28,8 @@
   .low2{background:linear-gradient(90deg,rgba(255,205,210,.45),transparent)}
   .inline{display:inline-flex;align-items:center;gap:6px}
   .right{margin-left:auto}
+  input[type=date]{padding:6px;border-radius:6px;border:1px solid #ddd}
+  select, input[type=number]{padding:6px;border-radius:6px;border:1px solid #ddd}
   @media(max-width:900px){ .two{grid-template-columns:1fr} }
 </style>
 </head>
@@ -36,7 +38,7 @@
   <header>
     <div>
       <h1>Dashboard — Stock & Sales</h1>
-      <div class="muted">Live view: Received (morning), Sales (today), Remaining. Uses local storage.</div>
+      <div class="muted">Live view: Received (morning), Sales (today), Remaining. Uses local storage. Choose Catalog view or a specific day.</div>
     </div>
 
     <div class="inline">
@@ -49,15 +51,28 @@
   <div class="card controls">
     <div class="inline">
       <label class="mutedSmall">Low-stock threshold:</label>
-      <input id="lowThreshold" type="number" value="5" style="width:80px;padding:6px;border-radius:6px;border:1px solid #ddd" />
+      <input id="lowThreshold" type="number" value="5" style="width:80px" />
     </div>
 
     <div class="inline">
       <label class="mutedSmall">Sort by remaining:</label>
-      <select id="sortDir" style="padding:6px;border-radius:6px;border:1px solid #ddd">
+      <select id="sortDir">
         <option value="asc">Ascending (lowest first)</option>
         <option value="desc">Descending (highest first)</option>
       </select>
+    </div>
+
+    <div class="inline">
+      <label class="mutedSmall">View mode:</label>
+      <select id="viewMode" title="Choose Catalog (default) or Day view">
+        <option value="catalog">Catalog (default)</option>
+        <option value="day">Specific day</option>
+      </select>
+    </div>
+
+    <div class="inline">
+      <label class="mutedSmall">Pick day:</label>
+      <input id="datePicker" type="date" />
     </div>
 
     <div class="inline right">
@@ -70,7 +85,7 @@
 
   <div class="two">
     <div class="card">
-      <div class="muted">Today (most recent catalog)</div>
+      <div class="muted">Primary view</div>
       <div style="display:flex;gap:10px;align-items:center">
         <div class="big" id="todayTotal">₹0</div>
         <div class="mutedSmall" id="todayMeta"></div>
@@ -88,7 +103,7 @@
     </div>
 
     <div class="card">
-      <div class="muted">Yesterday (previous catalog)</div>
+      <div class="muted">Previous (backup view)</div>
       <div style="display:flex;gap:10px;align-items:center">
         <div class="big" id="yTotal">₹0</div>
         <div class="mutedSmall" id="yMeta"></div>
@@ -108,7 +123,7 @@
 
   <div class="card">
     <div class="sectionTitle">Products — Morning Received / Today Sales / Remaining</div>
-    <div style="margin-top:8px" class="mutedSmall">Shows all products that appear in Today (received or sold). Rows color when remaining ≤ threshold.</div>
+    <div style="margin-top:8px" class="mutedSmall">Shows all products for the chosen view. Rows color when remaining ≤ threshold.</div>
 
     <table id="stockTable" aria-label="stock table">
       <thead>
@@ -126,6 +141,7 @@
   const PROD_KEY = 'milk_products_v1';
   const CATALOG_ORDER_KEY = 'milk_catalog_order_v1';
   const CART_KEY = 'milk_cart_v1';
+  const SELECTED_DATE_KEY = 'milk_selected_date_v1';
 
   const bc = ('BroadcastChannel' in window) ? new BroadcastChannel('milkshop_channel') : null;
 
@@ -135,7 +151,42 @@
   function readProducts(){ return JSON.parse(localStorage.getItem(PROD_KEY) || '[]'); }
   function readCatalogOrder(){ return JSON.parse(localStorage.getItem(CATALOG_ORDER_KEY) || '[]'); }
 
-  // Summarize tx for a specific catalogId
+  // Helper: normalize a transaction's date to 'YYYY-MM-DD' if possible
+  function txDateString(t){
+    if(!t) return null;
+    // If transaction already stores a date field in YYYY-MM-DD
+    if(t.date && typeof t.date === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(t.date)) return t.date;
+    // If there is a timestamp-like field 'ts' or 'time'
+    const ts = t.ts || t.time || t.timestamp || t.t;
+    if(ts !== undefined && ts !== null){
+      // accept seconds or milliseconds
+      const n = Number(ts);
+      if(!isNaN(n)){
+        // heuristic: if > 1e12 treat as ms, if < 1e12 treat as s
+        const date = new Date(n > 1e12 ? n : n * 1000);
+        if(!isNaN(date.getTime())){
+          const y = date.getFullYear();
+          const m = String(date.getMonth()+1).padStart(2,'0');
+          const d = String(date.getDate()).padStart(2,'0');
+          return `${y}-${m}-${d}`;
+        }
+      }
+    }
+    // Fallback: try parsing an ISO-like createdAt field
+    const maybe = t.createdAt || t.created_at || t.created;
+    if(maybe){
+      const d = new Date(maybe);
+      if(!isNaN(d.getTime())){
+        const y = d.getFullYear();
+        const m = String(d.getMonth()+1).padStart(2,'0');
+        const dd = String(d.getDate()).padStart(2,'0');
+        return `${y}-${m}-${dd}`;
+      }
+    }
+    return null;
+  }
+
+  // Summarize tx for a specific catalogId (existing behaviour)
   function summarizeForCatalog(catalogId){
     const tx = readTx();
     const rec = {}; const sold = {}; let recValue=0, soldValue=0;
@@ -155,9 +206,33 @@
     return { rec, sold, recValue, soldValue };
   }
 
-  // Build combined products map for a catalog: returns array of rows {name, received, sold, remaining, price}
-  function buildProductRows(catalogId){
-    const { rec, sold } = summarizeForCatalog(catalogId);
+  // Summarize tx for a specific ISO date string 'YYYY-MM-DD'
+  function summarizeForDate(dateStr){
+    const tx = readTx();
+    const rec = {}; const sold = {}; let recValue=0, soldValue=0;
+    tx.forEach(t=>{
+      const d = txDateString(t);
+      if(d !== dateStr) return;
+      const name = t.name || '—';
+      const qty = Number(t.qty || 0);
+      const price = Number(t.price || 0);
+      if(t.sale){
+        sold[name] = (sold[name] || 0) + qty;
+        soldValue += qty * price;
+      } else {
+        rec[name] = (rec[name] || 0) + qty;
+        recValue += qty * price;
+      }
+    });
+    return { rec, sold, recValue, soldValue };
+  }
+
+  // Build combined products map for a catalog OR for a date: returns array of rows {name, received, sold, remaining, price}
+  // filterType: 'catalog' or 'date'
+  function buildProductRows(filterVal, filterType){
+    const out = (filterType === 'date') ? summarizeForDate(filterVal || '') : summarizeForCatalog(filterVal || '');
+    const rec = out.rec || {};
+    const sold = out.sold || {};
     const prodList = readProducts() || [];
     // Map prices from published products (fallback to 0)
     const priceMap = {};
@@ -174,25 +249,32 @@
     return rows;
   }
 
-  // Render functions
-  function renderSummaryPanel(catalogId, prefix){
-    // prefix is 'today' or 'y'
-    const out = summarizeForCatalog(catalogId || '');
-    const recTotal = Object.values(out.rec).reduce((a,b)=>a+b,0);
-    const soldTotal = Object.values(out.sold).reduce((a,b)=>a+b,0);
+  // Render functions (adapted to support both modes)
+  function renderSummaryPanel(filterVal, filterType, prefix){
+    const out = (filterType === 'date') ? summarizeForDate(filterVal || '') : summarizeForCatalog(filterVal || '');
+    const recTotal = Object.values(out.rec || {}).reduce((a,b)=>a+b,0);
+    const soldTotal = Object.values(out.sold || {}).reduce((a,b)=>a+b,0);
     const remainingTotal = recTotal - soldTotal;
     document.getElementById(prefix + 'ReceivedVal').textContent = recTotal;
     document.getElementById(prefix + 'SoldVal').textContent = soldTotal;
     document.getElementById(prefix + 'RemainingVal').textContent = remainingTotal;
-    document.getElementById((prefix === 'today' ? 'todayTotal' : 'yTotal')).textContent = '₹' + (out.soldValue || 0).toFixed(2);
-    document.getElementById(prefix + 'Details').textContent = Object.keys(out.rec).length || Object.keys(out.sold).length ? 
-      `Products received: ${Object.keys(out.rec).length}, products sold: ${Object.keys(out.sold).length}` : 'No transactions';
+    document.getElementById((prefix === 'today' ? 'todayTotal' : 'yTotal')).textContent = '₹' + ((out.soldValue || 0).toFixed ? (out.soldValue || 0).toFixed(2) : Number(out.soldValue||0).toFixed(2));
+    document.getElementById(prefix + 'Details').textContent = ((Object.keys(out.rec || {}).length) || (Object.keys(out.sold || {}).length)) ?
+      `Products received: ${Object.keys(out.rec || {}).length}, products sold: ${Object.keys(out.sold || {}).length}` : 'No transactions';
   }
 
   function renderStockTable(){
     const order = readCatalogOrder() || [];
-    const todayId = order[0];
-    const rows = buildProductRows(todayId);
+    const viewMode = document.getElementById('viewMode').value || 'catalog';
+    let filterType = 'catalog';
+    let filterVal = order[0] || null;
+
+    if(viewMode === 'day'){
+      filterType = 'date';
+      filterVal = localStorage.getItem(SELECTED_DATE_KEY) || document.getElementById('datePicker').value || null;
+    }
+
+    const rows = buildProductRows(filterVal, filterType);
     const tbody = document.querySelector('#stockTable tbody');
     tbody.innerHTML = '';
 
@@ -210,13 +292,7 @@
       // color classes
       if(r.remaining <= 0) tr.className = 'low2';
       else if(r.remaining <= threshold) tr.className = 'low1';
-      tr.innerHTML = `
-        <td>${r.name}</td>
-        <td>${r.received}</td>
-        <td>${r.sold}</td>
-        <td>${r.remaining < 0 ? r.remaining + ' (oversold)' : r.remaining}</td>
-        <td>₹${Number(r.price||0).toFixed(2)}</td>
-      `;
+      tr.innerHTML = `\n        <td>${r.name}</td>\n        <td>${r.received}</td>\n        <td>${r.sold}</td>\n        <td>${r.remaining < 0 ? r.remaining + ' (oversold)' : r.remaining}</td>\n        <td>₹${Number(r.price||0).toFixed(2)}</td>\n      `;
       tbody.appendChild(tr);
     });
 
@@ -229,6 +305,13 @@
     document.getElementById('todayReceivedVal').textContent = totalRec;
     document.getElementById('todaySoldVal').textContent = totalSold;
     document.getElementById('todayRemainingVal').textContent = totalRem;
+
+    // meta label
+    if(filterType === 'date'){
+      document.getElementById('todayMeta').textContent = filterVal ? `Day: ${filterVal}` : 'No day selected';
+    } else {
+      document.getElementById('todayMeta').textContent = filterVal ? `Catalog: ${filterVal}` : 'No active catalog';
+    }
   }
 
   function renderAll(){
@@ -236,23 +319,38 @@
     const todayId = order[0] || null;
     const yesterdayId = order[1] || null;
 
-    // meta info
-    document.getElementById('todayMeta').textContent = todayId ? `Catalog: ${todayId}` : 'No active catalog';
+    // meta for the right panel (unchanged: show catalog IDs if present)
     document.getElementById('yMeta').textContent = yesterdayId ? `Catalog: ${yesterdayId}` : 'No previous catalog';
 
-    renderSummaryPanel(todayId, 'today');
-    renderSummaryPanel(yesterdayId, 'y');
+    // Primary: depends on view mode
+    const viewMode = document.getElementById('viewMode').value || 'catalog';
+    if(viewMode === 'day'){
+      const selectedDate = localStorage.getItem(SELECTED_DATE_KEY) || document.getElementById('datePicker').value || '';
+      renderSummaryPanel(selectedDate, 'date', 'today');
+      // for 'previous' panel we can show the catalog yesterday as backup
+      renderSummaryPanel(yesterdayId, 'catalog', 'y');
+    } else {
+      renderSummaryPanel(todayId, 'catalog', 'today');
+      renderSummaryPanel(yesterdayId, 'catalog', 'y');
+    }
 
     renderStockTable();
+
     // render details text for panels
-    // show top 5 sold items quick
-    function topItemsFor(catalogId){
-      const rows = buildProductRows(catalogId || '');
+    function topItemsFor(filterVal, filterType){
+      const rows = buildProductRows(filterVal || '', filterType || 'catalog');
       const sold = rows.filter(r=>r.sold>0).sort((a,b)=>b.sold - a.sold).slice(0,6);
       return sold.length ? sold.map(s=>`${s.name}×${s.sold}`).join(' • ') : 'No sales';
     }
-    document.getElementById('todayDetails').textContent = 'Top sold: ' + topItemsFor(todayId);
-    document.getElementById('yDetails').textContent = 'Top sold: ' + topItemsFor(yesterdayId);
+
+    if(viewMode === 'day'){
+      const sd = localStorage.getItem(SELECTED_DATE_KEY) || document.getElementById('datePicker').value || '';
+      document.getElementById('todayDetails').textContent = 'Top sold: ' + topItemsFor(sd, 'date');
+    } else {
+      document.getElementById('todayDetails').textContent = 'Top sold: ' + topItemsFor(todayId, 'catalog');
+    }
+
+    document.getElementById('yDetails').textContent = 'Top sold: ' + topItemsFor(yesterdayId, 'catalog');
   }
 
   // Exports
@@ -265,14 +363,20 @@
 
   function exportProductsCsv(){
     const order = readCatalogOrder() || [];
-    const todayId = order[0] || '';
-    const rows = buildProductRows(todayId);
+    const viewMode = document.getElementById('viewMode').value || 'catalog';
+    let filterType = 'catalog';
+    let filterVal = order[0] || '';
+    if(viewMode === 'day'){
+      filterType = 'date';
+      filterVal = localStorage.getItem(SELECTED_DATE_KEY) || document.getElementById('datePicker').value || '';
+    }
+    const rows = buildProductRows(filterVal, filterType);
     const cols = ['Product','Received','Sold','Remaining','UnitPrice'];
     const csv = [cols.join(',')].concat(rows.map(r=>{
       return [r.name, r.received, r.sold, r.remaining, Number(r.price||0).toFixed(2)].map(v=>`"${String(v).replace(/"/g,'""')}"`).join(',');
     })).join('\n');
     const blob = new Blob([csv], {type:'text/csv;charset=utf-8;'});
-    const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = 'product_stock_today.csv'; a.click();
+    const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = 'product_stock_view.csv'; a.click();
     URL.revokeObjectURL(a.href);
   }
 
@@ -295,25 +399,50 @@
   document.getElementById('printBtn').addEventListener('click', ()=> window.print());
   document.getElementById('clearAll').addEventListener('click', clearAll);
 
-  // When threshold or sort changes, re-render
+  // When threshold, sort, view mode or date changes, re-render
   document.getElementById('lowThreshold').addEventListener('change', renderAll);
   document.getElementById('sortDir').addEventListener('change', renderAll);
+  document.getElementById('viewMode').addEventListener('change', ()=>{
+    // If switching to day view and no date chosen, prefill with today
+    const vm = document.getElementById('viewMode').value;
+    if(vm === 'day' && !document.getElementById('datePicker').value){
+      const today = new Date();
+      const y = today.getFullYear(); const m = String(today.getMonth()+1).padStart(2,'0'); const d = String(today.getDate()).padStart(2,'0');
+      document.getElementById('datePicker').value = `${y}-${m}-${d}`;
+      localStorage.setItem(SELECTED_DATE_KEY, document.getElementById('datePicker').value);
+    }
+    localStorage.setItem('milk_view_mode_v1', vm);
+    renderAll();
+  });
+
+  document.getElementById('datePicker').addEventListener('change', (e)=>{
+    const v = e.target.value;
+    if(v) localStorage.setItem(SELECTED_DATE_KEY, v);
+    renderAll();
+  });
 
   // Live update: BroadcastChannel or storage event fallback
   if(bc){
     bc.onmessage = function(ev){
       const t = ev.data && ev.data.type;
-      // Re-render on any of the common events other pages post
       if(['tx-added','tx-added-batch','products-published','products-cleared','tx-cleared','cart-change'].includes(t)) renderAll();
     };
   } else {
     window.addEventListener('storage', function(e){
-      if([TX_KEY, PROD_KEY, CATALOG_ORDER_KEY, 'milkshop_signal'].includes(e.key)) renderAll();
+      if([TX_KEY, PROD_KEY, CATALOG_ORDER_KEY, 'milkshop_signal', SELECTED_DATE_KEY].includes(e.key)) renderAll();
     });
   }
 
-  // Initial render and periodic safety refresh
-  renderAll();
+  // Initial state restore
+  (function restore(){
+    const savedDate = localStorage.getItem(SELECTED_DATE_KEY);
+    if(savedDate) document.getElementById('datePicker').value = savedDate;
+    const savedView = localStorage.getItem('milk_view_mode_v1') || 'catalog';
+    document.getElementById('viewMode').value = savedView;
+    renderAll();
+  })();
+
+  // periodic refresh
   setInterval(renderAll, 1500);
 
 })();
