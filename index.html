@@ -1,285 +1,165 @@
 <!doctype html>
-<html lang="en">
+<html>
 <head>
 <meta charset="utf-8"/>
 <meta name="viewport" content="width=device-width,initial-scale=1"/>
-<title>DODLA Milk Diary - Sales Summary</title>
+<title>Milk Shop — Index</title>
 <style>
-body { margin:0; font-family:Segoe UI, Arial, sans-serif; background:#f7fbff; }
-header { background:linear-gradient(90deg,#0f62fe,#6a11cb); color:#fff; padding:15px; text-align:center; }
-h1 { margin:0; font-size:22px; }
-.wrap { max-width:1200px; margin:auto; padding:15px; display:grid; grid-template-columns:2fr 1fr; gap:20px; }
-.grid { display:grid; grid-template-columns:repeat(auto-fill,minmax(180px,1fr)); gap:16px; }
-.card { background:#fff; border-radius:12px; box-shadow:0 4px 10px rgba(0,0,0,0.05); overflow:hidden; display:flex; flex-direction:column; }
-.card img { width:100%; height:120px; object-fit:cover; }
-.card-body { padding:10px; flex:1; display:flex; flex-direction:column; justify-content:space-between; }
-.name { font-weight:600; font-size:14px; margin-bottom:4px; }
-.price { color:#0f62fe; font-weight:700; margin-bottom:6px; }
-.actions { display:flex; gap:6px; }
-.actions input { width:50px; padding:5px; border:1px solid #ddd; border-radius:6px; text-align:center; }
-.actions button { flex:1; background:#0f62fe; color:#fff; border:none; padding:6px; border-radius:6px; cursor:pointer; transition: all 0.3s ease; }
-.actions button:hover { background:#0c4ed6; transform: scale(1.05); }
-.animate { animation: pop 0.5s ease; }
-@keyframes pop {
-  0% { transform: scale(1); }
-  50% { transform: scale(1.2); }
-  100% { transform: scale(1); }
-}
-table { width:100%; border-collapse:collapse; margin-top:10px; }
-th,td { border-bottom:1px solid #eee; padding:8px; font-size:14px; text-align:left; }
-tfoot td { font-weight:700; }
-.checkout-box { margin-top:20px; background:#fff; border-radius:12px; padding:15px; box-shadow:0 4px 10px rgba(0,0,0,0.05); }
-.export-btns { margin-top:10px; display:flex; gap:10px; }
-.export-btns button { background:#6a11cb; color:#fff; border:none; padding:6px 10px; border-radius:6px; cursor:pointer; }
-h3 { margin-top:0; color:#0f62fe; }
-.calendar-container { margin-top:20px; display:flex; gap:10px; align-items:center; }
-@media(max-width:768px){ .wrap { grid-template-columns:1fr; } }
+  body{font-family:Arial,system-ui;margin:0;background:#f4f6fb;color:#111}
+  .container{max-width:1000px;margin:18px auto;padding:12px}
+  header{display:flex;align-items:center;justify-content:space-between;gap:12px}
+  h1{margin:0;font-size:20px}
+  .muted{color:#666;font-size:13px}
+  .nav{display:flex;gap:8px;margin-top:12px;flex-wrap:wrap}
+  .btn{padding:10px 12px;border-radius:8px;border:0;background:#0b74ff;color:#fff;cursor:pointer;font-weight:600}
+  .btn.ghost{background:#fff;color:#0b74ff;border:1px solid #dbeafe}
+  .layout{display:grid;grid-template-columns:260px 1fr;gap:12px;margin-top:12px}
+  .panel{background:#fff;padding:12px;border-radius:10px;box-shadow:0 6px 20px rgba(16,24,40,.06)}
+  .list{display:flex;flex-direction:column;gap:8px}
+  .item{display:flex;justify-content:space-between;align-items:center;padding:8px;border-radius:6px;border:1px solid #f0f3ff;background:#fff}
+  iframe{width:100%;height:78vh;border:0;border-radius:8px}
+  .small{font-size:13px;color:#555}
+  @media(max-width:900px){ .layout{grid-template-columns:1fr} iframe{height:60vh} }
 </style>
 </head>
 <body>
-<header>
-  <h1>DODLA Milk Diary</h1>
-  <p>Click Add to add products, confirm to checkout.</p>
-</header>
+  <div class="container">
+    <header>
+      <div>
+        <h1>Milk Shop — Index</h1>
+        <div class="muted">Open any page below — preview on the right or open full screen.</div>
+      </div>
+      <div>
+        <button id="openDashboard" class="btn">Open Dashboard</button>
+      </div>
+    </header>
 
-<div class="wrap">
-  <!-- Left Column -->
-  <div>
-    <h2>Products</h2>
-    <div class="grid" id="productGrid"></div>
+    <div class="layout">
+      <div class="panel">
+        <div style="font-weight:700">Pages</div>
+        <div class="list" style="margin-top:8px">
+          <div class="item">
+            <div>
+              <div style="font-weight:600">Dashboard</div>
+              <div class="small">View stock, sales & history</div>
+            </div>
+            <div>
+              <button class="btn view" data-file="dashboard.html">View</button>
+              <button class="btn ghost open" data-file="dashboard.html">Open</button>
+            </div>
+          </div>
 
-    <div class="checkout-box">
-      <h3>Today's Sales Summary</h3>
-      <table>
-        <thead>
-          <tr><th>Time</th><th>Product Name</th><th>Qty</th><th>Price</th><th>Total</th></tr>
-        </thead>
-        <tbody id="todaySalesBody"></tbody>
-        <tfoot>
-          <tr><td colspan="4">Total</td><td id="todayTotal">0</td></tr>
-        </tfoot>
-      </table>
-    </div>
+          <div class="item">
+            <div>
+              <div style="font-weight:600">Catalog</div>
+              <div class="small">Edit & publish products</div>
+            </div>
+            <div>
+              <button class="btn view" data-file="catalog.html">View</button>
+              <button class="btn ghost open" data-file="catalog.html">Open</button>
+            </div>
+          </div>
 
-    <div class="checkout-box">
-      <h3>Daily Final Product Count</h3>
-      <table>
-        <thead><tr id="finalHeaderRow"></tr></thead>
-        <tbody><tr id="finalQtyRow"></tr></tbody>
-      </table>
-    </div>
+          <div class="item">
+            <div>
+              <div style="font-weight:600">Cart (Morning)</div>
+              <div class="small">Adjust received quantities</div>
+            </div>
+            <div>
+              <button class="btn view" data-file="cart.html">View</button>
+              <button class="btn ghost open" data-file="cart.html">Open</button>
+            </div>
+          </div>
 
-    <div class="calendar-container">
-      <label for="selectDate">Select Date:</label>
-      <input type="date" id="selectDate"/>
-      <button onclick="loadByDate()">Load</button>
-      <button onclick="exportExcel()">Download Today Excel</button>
-      <button onclick="exportPDF()">Download Today PDF</button>
-    </div>
-  </div>
-
-  <!-- Right Column: Last 5 Checkouts -->
-  <div>
-    <div class="checkout-box" id="lastCheckouts">
-      <h3>Last 5 Checkouts</h3>
-      <p>No checkout yet.</p>
-    </div>
-  </div>
-</div>
-
-<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
-<script>
-const products = [
-  {id:1,name:"Milk - 200ml",price:20,img:"https://picsum.photos/200/150?random=1"},
-  {id:2,name:"Milk - 500ml",price:35,img:"https://picsum.photos/200/150?random=2"},
-  {id:3,name:"Milk - 1L",price:60,img:"https://picsum.photos/200/150?random=3"},
-  {id:4,name:"Milk - 2L",price:110,img:"https://picsum.photos/200/150?random=4"},
-  {id:5,name:"Curd - 200g",price:25,img:"https://picsum.photos/200/150?random=5"},
-  {id:6,name:"Curd - 500g",price:50,img:"https://picsum.photos/200/150?random=6"},
-  {id:7,name:"Curd - 1kg",price:95,img:"https://picsum.photos/200/150?random=7"},
-  {id:8,name:"Butter - 100g",price:40,img:"https://picsum.photos/200/150?random=8"},
-  {id:9,name:"Butter - 500g",price:180,img:"https://picsum.photos/200/150?random=9"},
-  {id:10,name:"Paneer - 100g",price:60,img:"https://picsum.photos/200/150?random=10"}
-];
-
-let dailyLedger = {};
-let lastCheckouts = [];
-let currentDate = new Date().toISOString().slice(0,10);
-
-// LocalStorage
-function saveData(){
-  localStorage.setItem("dailyLedger", JSON.stringify(dailyLedger));
-  localStorage.setItem("lastCheckouts", JSON.stringify(lastCheckouts));
-}
-function loadData(){
-  dailyLedger = JSON.parse(localStorage.getItem("dailyLedger")) || {};
-  lastCheckouts = JSON.parse(localStorage.getItem("lastCheckouts")) || [];
-  renderLastCheckouts();
-  updateDailySummary(currentDate);
-  updateFinalSummary(currentDate);
-}
-
-// Render Products
-function renderProducts(){
-  const grid=document.getElementById('productGrid');
-  grid.innerHTML='';
-  products.forEach(p=>{
-    const div=document.createElement('div');
-    div.className='card';
-    div.innerHTML=`<img src="${p.img}" alt="${p.name}">
-      <div class="card-body">
-        <div><div class="name">${p.name}</div><div class="price">₹ ${p.price}</div></div>
-        <div class="actions">
-          <input type="number" min="1" value="1" id="qty-${p.id}">
-          <button id="btn-${p.id}" onclick="addProduct(${p.id})">Add</button>
+          <div class="item">
+            <div>
+              <div style="font-weight:600">Sales</div>
+              <div class="small">Record sales fast</div>
+            </div>
+            <div>
+              <button class="btn view" data-file="sales.html">View</button>
+              <button class="btn ghost open" data-file="sales.html">Open</button>
+            </div>
+          </div>
         </div>
-      </div>`;
-    grid.appendChild(div);
+
+        <div style="margin-top:12px;display:flex;gap:8px;align-items:center">
+          <button id="downloadTx" class="btn ghost">Download TX (JSON)</button>
+          <button id="clearAll" class="btn ghost">Clear Data</button>
+        </div>
+
+        <div style="margin-top:10px" class="small">Place this file in the same folder as <code>catalog.html</code>, <code>cart.html</code>, <code>sales.html</code>, <code>dashboard.html</code>.</div>
+      </div>
+
+      <div class="panel">
+        <div style="display:flex;justify-content:space-between;align-items:center;gap:8px">
+          <div>
+            <div style="font-weight:700">Preview</div>
+            <div class="small">Pages load here for quick switching</div>
+          </div>
+          <div>
+            <button id="reloadFrame" class="btn ghost">Reload</button>
+            <button id="openFrameNew" class="btn">Open Preview in new tab</button>
+          </div>
+        </div>
+
+        <div style="margin-top:10px">
+          <iframe id="preview" src="dashboard.html" title="preview"></iframe>
+        </div>
+      </div>
+    </div>
+  </div>
+
+<script>
+(function(){
+  const preview = document.getElementById('preview');
+
+  // View in iframe
+  document.querySelectorAll('.view').forEach(b=>{
+    b.addEventListener('click', ()=> preview.src = b.dataset.file);
   });
-}
 
-// Add product with confirmation, reset, and animation
-function addProduct(id){
-  const product = products.find(p => p.id === id);
-  const qtyInput = document.getElementById('qty-' + id);
-  const qty = parseInt(qtyInput.value) || 1;
-  if(!confirm(`Add ${qty} x ${product.name} to checkout?`)) return;
-
-  const time = Date.now();
-  const today = new Date().toISOString().slice(0,10);
-  if(!dailyLedger[today]) dailyLedger[today] = [];
-  dailyLedger[today].push({id: product.id, name: product.name, qty, price: product.price, time});
-
-  lastCheckouts.unshift({time, items:[{...product, qty}], total: qty*product.price});
-  if(lastCheckouts.length > 5) lastCheckouts.pop();
-
-  qtyInput.value = 1; 
-  document.getElementById('btn-'+id).classList.add('animate');
-  setTimeout(()=>document.getElementById('btn-'+id).classList.remove('animate'),500);
-
-  saveData();
-  renderLastCheckouts();
-  updateDailySummary(currentDate);
-  updateFinalSummary(currentDate);
-}
-
-// Render Last 5 Checkouts
-function renderLastCheckouts(){
-  const box=document.getElementById('lastCheckouts');
-  if(lastCheckouts.length===0){box.innerHTML="<h3>Last 5 Checkouts</h3><p>No checkout yet.</p>"; return;}
-  box.innerHTML="<h3>Last 5 Checkouts</h3>";
-  lastCheckouts.forEach(co=>{
-    const ul = document.createElement('ul');
-    co.items.forEach(i=>{const li=document.createElement('li'); li.innerText=`${i.name} x${i.qty} = ₹${i.qty*i.price}`; ul.appendChild(li);});
-    const p = document.createElement('p'); p.innerHTML=`Time: ${new Date(co.time).toLocaleTimeString()} | Total: ₹${co.total}`;
-    box.appendChild(ul); box.appendChild(p);
+  // Open in new tab
+  document.querySelectorAll('.open').forEach(b=>{
+    b.addEventListener('click', ()=> window.open(b.dataset.file, '_blank'));
   });
-}
 
-// Update Sales Summary by Date (merge same product within same minute)
-function updateDailySummary(date){
-  currentDate = date || new Date().toISOString().slice(0,10);
-  document.getElementById('selectDate').value = currentDate;
-  const data = dailyLedger[currentDate] || [];
-  const tbody = document.getElementById('todaySalesBody');
-  tbody.innerHTML = '';
-  let total = 0;
-  const summary = {};
-  data.forEach(item=>{
-    const dateObj = new Date(item.time);
-    const hhmm = dateObj.getHours()+":"+dateObj.getMinutes(); // same minute
-    const key = item.name+'_'+hhmm;
-    if(summary[key]){
-      summary[key].qty += item.qty;
-      summary[key].amount += item.qty*item.price;
-    } else summary[key]={name:item.name,qty:item.qty,price:item.price,amount:item.qty*item.price,time:dateObj};
+  // Open Dashboard button
+  document.getElementById('openDashboard').addEventListener('click', ()=> window.open('dashboard.html', '_blank'));
+
+  // reload preview
+  document.getElementById('reloadFrame').addEventListener('click', ()=> {
+    try { preview.contentWindow.location.reload(); } catch(e) { preview.src = preview.src; }
   });
-  Object.values(summary).forEach(item=>{
-    total += item.amount;
-    const row=document.createElement('tr');
-    row.innerHTML=`<td>${item.time.toLocaleTimeString()}</td><td>${item.name}</td><td>${item.qty}</td><td>₹${item.price}</td><td>₹${item.amount}</td>`;
-    tbody.appendChild(row);
+
+  // open preview in new tab
+  document.getElementById('openFrameNew').addEventListener('click', ()=> window.open(preview.src || 'dashboard.html', '_blank'));
+
+  // download local transactions JSON
+  document.getElementById('downloadTx').addEventListener('click', ()=>{
+    const key = 'milk_tx_v1';
+    const data = localStorage.getItem(key) || '[]';
+    const blob = new Blob([data], {type:'application/json'});
+    const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = key + '.json'; a.click();
+    URL.revokeObjectURL(a.href);
   });
-  document.getElementById('todayTotal').innerText=total;
-}
 
-// Update Final Product Count
-function updateFinalSummary(date){
-  const data = dailyLedger[date || currentDate] || [];
-  const headerRow = document.getElementById('finalHeaderRow');
-  const qtyRow = document.getElementById('finalQtyRow');
-  headerRow.innerHTML=''; qtyRow.innerHTML='';
-  const countMap={};
-  data.forEach(i=>{ countMap[i.name]=(countMap[i.name]||0)+i.qty; });
-  Object.keys(countMap).forEach(name=>{
-    const th=document.createElement('th'); th.innerText=name; headerRow.appendChild(th);
-    const td=document.createElement('td'); td.innerText=countMap[name]; qtyRow.appendChild(td);
+  // clear data
+  document.getElementById('clearAll').addEventListener('click', ()=>{
+    if(!confirm('Delete transactions, products and cart from this browser?')) return;
+    ['milk_tx_v1','milk_products_v1','milk_cart_v1','milk_catalog_order_v1','milk_sales_v1'].forEach(k=>localStorage.removeItem(k));
+    alert('Local data cleared. Refresh pages if open.');
+    try { preview.contentWindow.location.reload(); } catch(e) { preview.src = preview.src; }
   });
-}
 
-// Load by calendar date
-function loadByDate(){
-  const selected = document.getElementById('selectDate').value;
-  if(!selected) { alert("Select a date!"); return; }
-  updateDailySummary(selected);
-  updateFinalSummary(selected);
-}
-
-// Exports
-function exportExcel(){
-  const data = dailyLedger[currentDate] || [];
-  if(data.length===0){alert("No data for this date"); return;}
-  const ws=XLSX.utils.json_to_sheet(data.map(i=>({
-    Time:new Date(i.time).toLocaleString(),
-    Item:i.name,
-    Qty:i.qty,
-    Price:i.price,
-    Total:i.qty*i.price
-  })));
-  const wb=XLSX.utils.book_new();
-  XLSX.utils.book_append_sheet(wb, ws, "Sales");
-  XLSX.writeFile(wb, `sales_${currentDate}.xlsx`);
-}
-
-function exportPDF(){
-  const { jsPDF } = window.jspdf;
-  const doc = new jsPDF();
-  const data = dailyLedger[currentDate] || [];
-  if(data.length===0){alert("No data for this date"); return;}
-  doc.text(`Sales Ledger - ${currentDate}`,10,10);
-  doc.setFontSize(10);
-  let startY = 20;
-  doc.text("Time",10,startY); doc.text("Product",50,startY); doc.text("Qty",110,startY); doc.text("Price",130,startY); doc.text("Total",150,startY);
-  startY+=6; doc.setLineWidth(0.1); doc.line(10,startY-2,190,startY-2);
-  data.forEach(item=>{
-    const dateObj = new Date(item.time);
-    doc.text(dateObj.toLocaleTimeString(),10,startY);
-    doc.text(item.name,50,startY);
-    doc.text(item.qty.toString(),110,startY);
-    doc.text("₹"+item.price,130,startY);
-    doc.text("₹"+(item.price*item.qty),150,startY);
-    startY+=6;
+  // keyboard shortcuts (1..4)
+  window.addEventListener('keydown', e=>{
+    if(e.key === '1') preview.src = 'dashboard.html';
+    if(e.key === '2') preview.src = 'catalog.html';
+    if(e.key === '3') preview.src = 'cart.html';
+    if(e.key === '4') preview.src = 'sales.html';
   });
-  doc.save(`sales_${currentDate}.pdf`);
-}
-
-// Midnight reset
-setInterval(()=>{
-  const now = new Date();
-  if(now.getHours()===0 && now.getMinutes()===0 && now.getSeconds()===0){
-    currentDate = new Date().toISOString().slice(0,10);
-    saveData();
-    updateDailySummary(currentDate);
-    updateFinalSummary(currentDate);
-  }
-},1000);
-
-// Initialize
-loadData();
-renderProducts();
-updateDailySummary(currentDate);
-updateFinalSummary(currentDate);
+})();
 </script>
 </body>
 </html>
