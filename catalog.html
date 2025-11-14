@@ -1,0 +1,244 @@
+<!doctype html>
+<html>
+<head>
+<meta charset="utf-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1"/>
+<title>Catalog — publish products</title>
+<style>
+  body{font-family:Arial;margin:12px;max-width:900px}
+  header{display:flex;justify-content:space-between;align-items:center}
+  .products{display:grid;grid-template-columns:repeat(auto-fill,minmax(160px,1fr));gap:10px;margin-top:12px}
+  .card{background:#fff;padding:10px;border-radius:8px;box-shadow:0 1px 3px rgba(0,0,0,.06)}
+  button{width:100%;padding:8px;border-radius:6px;border:0;background:#0b74ff;color:#fff;cursor:pointer}
+  .small{font-size:13px;color:#555}
+  label{font-size:13px;display:block;margin-top:6px}
+  input[type=text], input[type=number]{width:100%;padding:6px;margin-top:4px;border:1px solid #ddd;border-radius:6px}
+  .row{display:flex;gap:8px}
+  .controls{display:flex;gap:8px;align-items:center;margin-top:8px}
+  .publish{background:#16a34a}
+  .danger{background:#ef4444}
+</style>
+</head>
+<body>
+
+<header>
+  <div>
+    <h1>Catalog — Publish Products</h1>
+    <div class="small">This page publishes products to <code>milk_products_v1</code> automatically on load and whenever you press Publish.</div>
+  </div>
+
+  <div>
+    <div class="small">Catalog ID: <span id="catalogId"></span></div>
+  </div>
+</header>
+
+<div class="card" style="margin-top:12px">
+  <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center">
+    <div style="flex:1">
+      <label>Add new product</label>
+      <input id="pname" placeholder="Product name (e.g. Milk 100ml)" />
+      <input id="pprice" type="number" placeholder="Price" style="margin-top:6px"/>
+    </div>
+    <div style="min-width:120px;display:flex;flex-direction:column;gap:8px">
+      <button id="addProd">Add product</button>
+      <button id="publish" class="publish">Publish products</button>
+      <button id="clearPublished" class="danger">Clear published</button>
+    </div>
+  </div>
+</div>
+
+<main style="margin-top:12px">
+  <div class="products" id="productsGrid">
+    <!-- initial example products; you can edit these in-place or remove -->
+    <div class="card" data-name="Milk 100ml" data-price="10">
+      <div><input class="editName" value="Milk 100ml" /></div>
+      <div class="small">₹ <input class="editPrice" type="number" value="10" /></div>
+      <div style="margin-top:8px;display:flex;gap:6px">
+        <button class="saveBtn">Save</button>
+        <button class="addToCartBtn">Add to cart</button>
+        <button class="deleteBtn" style="background:#ef4444">Delete</button>
+      </div>
+    </div>
+
+    <div class="card" data-name="Milk 200ml" data-price="18">
+      <div><input class="editName" value="Milk 200ml" /></div>
+      <div class="small">₹ <input class="editPrice" type="number" value="18" /></div>
+      <div style="margin-top:8px;display:flex;gap:6px">
+        <button class="saveBtn">Save</button>
+        <button class="addToCartBtn">Add to cart</button>
+        <button class="deleteBtn" style="background:#ef4444">Delete</button>
+      </div>
+    </div>
+
+    <div class="card" data-name="Curd 200g" data-price="20">
+      <div><input class="editName" value="Curd 200g" /></div>
+      <div class="small">₹ <input class="editPrice" type="number" value="20" /></div>
+      <div style="margin-top:8px;display:flex;gap:6px">
+        <button class="saveBtn">Save</button>
+        <button class="addToCartBtn">Add to cart</button>
+        <button class="deleteBtn" style="background:#ef4444">Delete</button>
+      </div>
+    </div>
+  </div>
+</main>
+
+<script>
+(function(){
+  // keys
+  const PROD_KEY = 'milk_products_v1';
+  const CART_KEY = 'milk_cart_v1';
+  const CATALOG_ORDER_KEY = 'milk_catalog_order_v1';
+  const bc = ('BroadcastChannel' in window) ? new BroadcastChannel('milkshop_channel') : null;
+
+  // catalog id - use date-based id by default
+  const catalogId = 'catalog-' + new Date().toISOString().slice(0,10);
+  document.getElementById('catalogId').textContent = catalogId;
+
+  // --- DOM helpers ---
+  const grid = document.getElementById('productsGrid');
+
+  function readProductsFromDom(){
+    const cards = Array.from(grid.querySelectorAll('.card'));
+    return cards.map(c=>{
+      const nameInput = c.querySelector('.editName');
+      const priceInput = c.querySelector('.editPrice');
+      const name = (nameInput ? nameInput.value : c.dataset.name || '').trim();
+      const price = Number(priceInput ? priceInput.value : c.dataset.price || 0) || 0;
+      return { name, price };
+    }).filter(p=>p.name);
+  }
+
+  function savePublished(list){
+    localStorage.setItem(PROD_KEY, JSON.stringify(list));
+    // mark active catalog
+    let order = JSON.parse(localStorage.getItem(CATALOG_ORDER_KEY) || '[]');
+    order = order.filter(x=>x!==catalogId);
+    order.unshift(catalogId);
+    order = order.slice(0,20);
+    localStorage.setItem(CATALOG_ORDER_KEY, JSON.stringify(order));
+    // notify
+    if(bc) bc.postMessage({type:'products-published'});
+    else localStorage.setItem('milkshop_signal', Date.now().toString());
+  }
+
+  function publishFromDom(){
+    const list = readProductsFromDom();
+    savePublished(list);
+    alert('Published ' + list.length + ' products');
+  }
+
+  function loadPublishedIfAny(){
+    const raw = localStorage.getItem(PROD_KEY);
+    if(!raw) return;
+    try{
+      const list = JSON.parse(raw);
+      // render into DOM (replace existing cards)
+      grid.innerHTML = '';
+      list.forEach(p=>{
+        const card = buildCard(p.name, p.price);
+        grid.appendChild(card);
+      });
+    } catch(e){ /* ignore malformed */ }
+  }
+
+  function buildCard(name, price){
+    const d = document.createElement('div'); d.className='card';
+    d.dataset.name = name; d.dataset.price = price;
+    d.innerHTML = `
+      <div><input class="editName" value="${escapeHtml(name)}" /></div>
+      <div class="small">₹ <input class="editPrice" type="number" value="${Number(price)}" /></div>
+      <div style="margin-top:8px;display:flex;gap:6px">
+        <button class="saveBtn">Save</button>
+        <button class="addToCartBtn">Add to cart</button>
+        <button class="deleteBtn" style="background:#ef4444">Delete</button>
+      </div>
+    `;
+    attachCardHandlers(d);
+    return d;
+  }
+
+  // attach handlers to a card element (save, add to cart, delete)
+  function attachCardHandlers(card){
+    const saveBtn = card.querySelector('.saveBtn');
+    const addBtn = card.querySelector('.addToCartBtn');
+    const delBtn = card.querySelector('.deleteBtn');
+    const nameInput = card.querySelector('.editName');
+    const priceInput = card.querySelector('.editPrice');
+
+    saveBtn.addEventListener('click', ()=>{
+      const n = nameInput.value.trim();
+      const p = Number(priceInput.value) || 0;
+      if(!n) return alert('Enter product name');
+      card.dataset.name = n; card.dataset.price = p;
+      // update published immediately
+      publishFromDom();
+    });
+
+    addBtn.addEventListener('click', ()=>{
+      const name = (nameInput.value || '').trim() || card.dataset.name;
+      const price = Number(priceInput.value) || Number(card.dataset.price) || 0;
+      addToCart(name, price);
+      addBtn.textContent = 'Added';
+      setTimeout(()=> addBtn.textContent = 'Add to cart', 300);
+    });
+
+    delBtn.addEventListener('click', ()=>{
+      if(!confirm('Delete this product?')) return;
+      card.remove();
+      publishFromDom();
+    });
+  }
+
+  function addToCart(name, price){
+    const raw = localStorage.getItem(CART_KEY);
+    let cart = raw ? JSON.parse(raw) : {catalogId: catalogId, items: []};
+    if(cart.catalogId !== catalogId) cart = {catalogId: catalogId, items: []};
+    const idx = cart.items.findIndex(i=>i.name===name && i.price==price);
+    if(idx>=0) cart.items[idx].qty += 1;
+    else cart.items.push({name, price, qty:1});
+    localStorage.setItem(CART_KEY, JSON.stringify(cart));
+    if(bc) bc.postMessage({type:'cart-change', catalogId});
+    else localStorage.setItem('milkshop_signal', Date.now().toString());
+  }
+
+  // escape helper for safe value injection
+  function escapeHtml(s){ return String(s).replace(/&/g,'&amp;').replace(/"/g,'&quot;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
+
+  // Add product from top form
+  document.getElementById('addProd').addEventListener('click', ()=>{
+    const name = document.getElementById('pname').value.trim();
+    const price = Number(document.getElementById('pprice').value) || 0;
+    if(!name) return alert('Enter product name');
+    const card = buildCard(name, price);
+    grid.appendChild(card);
+    document.getElementById('pname').value=''; document.getElementById('pprice').value='';
+    publishFromDom();
+  });
+
+  // Publish / clear handlers
+  document.getElementById('publish').addEventListener('click', publishFromDom);
+  document.getElementById('clearPublished').addEventListener('click', ()=>{
+    if(!confirm('Clear published products?')) return;
+    localStorage.removeItem(PROD_KEY);
+    if(bc) bc.postMessage({type:'products-cleared'});
+    else localStorage.setItem('milkshop_signal', Date.now().toString());
+    alert('Published products cleared');
+  });
+
+  // initial: load published if exist, else keep sample cards
+  loadPublishedIfAny();
+
+  // auto-publish current DOM products on load so sales page can read immediately
+  // (use setTimeout so any load-time DOM edits settle)
+  setTimeout(()=> {
+    const current = readProductsFromDom();
+    if(current && current.length) savePublished(current);
+  }, 250);
+
+  // attach handlers for existing cards
+  Array.from(grid.querySelectorAll('.card')).forEach(c=> attachCardHandlers(c));
+})();
+</script>
+
+</body>
+</html>

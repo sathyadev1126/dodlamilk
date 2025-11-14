@@ -1,0 +1,322 @@
+<!doctype html>
+<html>
+<head>
+<meta charset="utf-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1"/>
+<title>Dashboard — Stock, Sales & Remaining</title>
+<style>
+  :root{--bg:#f6f7fb;--card:#fff;--muted:#6b7280}
+  body{font-family:Inter,Arial,Helvetica,sans-serif;margin:12px;background:var(--bg);color:#111}
+  .wrap{max-width:1100px;margin:0 auto}
+  header{display:flex;justify-content:space-between;align-items:center;gap:12px}
+  h1{margin:0;font-size:20px}
+  .muted{color:var(--muted);font-size:13px}
+  .controls{display:flex;gap:8px;flex-wrap:wrap;margin-top:10px}
+  .card{background:var(--card);padding:12px;border-radius:10px;box-shadow:0 4px 18px rgba(16,24,40,.06);margin-top:12px}
+  .two{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+  .sectionTitle{font-weight:700;margin-top:8px}
+  table{width:100%;border-collapse:collapse;margin-top:10px}
+  th,td{padding:8px;border-bottom:1px solid #eee;text-align:left;font-size:14px}
+  th{background:#fafafa;font-weight:600}
+  .big{font-size:18px;font-weight:700}
+  .btn{padding:8px 10px;border-radius:8px;border:0;background:#0b74ff;color:#fff;cursor:pointer}
+  .btn.ghost{background:#fff;color:#0b74ff;border:1px solid #dbeafe}
+  .btn.warn{background:#ffb020;color:#fff}
+  .btn.danger{background:#ff4d4f;color:#fff}
+  .mutedSmall{font-size:13px;color:#555}
+  .low1{background:linear-gradient(90deg,rgba(255,235,205,.4),transparent)}
+  .low2{background:linear-gradient(90deg,rgba(255,205,210,.45),transparent)}
+  .inline{display:inline-flex;align-items:center;gap:6px}
+  .right{margin-left:auto}
+  @media(max-width:900px){ .two{grid-template-columns:1fr} }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <div>
+      <h1>Dashboard — Stock & Sales</h1>
+      <div class="muted">Live view: Received (morning), Sales (today), Remaining. Uses local storage.</div>
+    </div>
+
+    <div class="inline">
+      <a href="catalog.html" class="btn">Catalog</a>
+      <a href="cart.html" class="btn btn ghost">Cart</a>
+      <a href="sales.html" class="btn btn ghost">Sales</a>
+    </div>
+  </header>
+
+  <div class="card controls">
+    <div class="inline">
+      <label class="mutedSmall">Low-stock threshold:</label>
+      <input id="lowThreshold" type="number" value="5" style="width:80px;padding:6px;border-radius:6px;border:1px solid #ddd" />
+    </div>
+
+    <div class="inline">
+      <label class="mutedSmall">Sort by remaining:</label>
+      <select id="sortDir" style="padding:6px;border-radius:6px;border:1px solid #ddd">
+        <option value="asc">Ascending (lowest first)</option>
+        <option value="desc">Descending (highest first)</option>
+      </select>
+    </div>
+
+    <div class="inline right">
+      <button id="downloadTx" class="btn">Download TX (JSON)</button>
+      <button id="exportAllCsv" class="btn btn ghost">Export Products CSV</button>
+      <button id="printBtn" class="btn btn ghost">Print / Save PDF</button>
+      <button id="clearAll" class="btn danger">Clear All</button>
+    </div>
+  </div>
+
+  <div class="two">
+    <div class="card">
+      <div class="muted">Today (most recent catalog)</div>
+      <div style="display:flex;gap:10px;align-items:center">
+        <div class="big" id="todayTotal">₹0</div>
+        <div class="mutedSmall" id="todayMeta"></div>
+      </div>
+
+      <div class="sectionTitle">Summary</div>
+      <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-top:8px">
+        <div class="card" style="padding:8px"><div class="mutedSmall">Received</div><div id="todayReceivedVal" class="big">0</div></div>
+        <div class="card" style="padding:8px"><div class="mutedSmall">Sold</div><div id="todaySoldVal" class="big">0</div></div>
+        <div class="card" style="padding:8px"><div class="mutedSmall">Remaining</div><div id="todayRemainingVal" class="big">0</div></div>
+      </div>
+
+      <div class="sectionTitle">Details</div>
+      <div id="todayDetails" class="mutedSmall" style="margin-top:8px"></div>
+    </div>
+
+    <div class="card">
+      <div class="muted">Yesterday (previous catalog)</div>
+      <div style="display:flex;gap:10px;align-items:center">
+        <div class="big" id="yTotal">₹0</div>
+        <div class="mutedSmall" id="yMeta"></div>
+      </div>
+
+      <div class="sectionTitle">Summary</div>
+      <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-top:8px">
+        <div class="card" style="padding:8px"><div class="mutedSmall">Received</div><div id="yReceivedVal" class="big">0</div></div>
+        <div class="card" style="padding:8px"><div class="mutedSmall">Sold</div><div id="ySoldVal" class="big">0</div></div>
+        <div class="card" style="padding:8px"><div class="mutedSmall">Remaining</div><div id="yRemainingVal" class="big">0</div></div>
+      </div>
+
+      <div class="sectionTitle">Details</div>
+      <div id="yDetails" class="mutedSmall" style="margin-top:8px"></div>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="sectionTitle">Products — Morning Received / Today Sales / Remaining</div>
+    <div style="margin-top:8px" class="mutedSmall">Shows all products that appear in Today (received or sold). Rows color when remaining ≤ threshold.</div>
+
+    <table id="stockTable" aria-label="stock table">
+      <thead>
+        <tr><th>Product</th><th>Morning Received</th><th>Today Sales</th><th>Remaining</th><th>Unit ₹</th></tr>
+      </thead>
+      <tbody></tbody>
+    </table>
+  </div>
+</div>
+
+<script>
+(function(){
+  // Keys used by other pages
+  const TX_KEY = 'milk_tx_v1';
+  const PROD_KEY = 'milk_products_v1';
+  const CATALOG_ORDER_KEY = 'milk_catalog_order_v1';
+  const CART_KEY = 'milk_cart_v1';
+
+  const bc = ('BroadcastChannel' in window) ? new BroadcastChannel('milkshop_channel') : null;
+
+  // Utilities
+  function readJSON(key){ try { return JSON.parse(localStorage.getItem(key) || 'null'); } catch(e){ return null; } }
+  function readTx(){ return JSON.parse(localStorage.getItem(TX_KEY) || '[]'); }
+  function readProducts(){ return JSON.parse(localStorage.getItem(PROD_KEY) || '[]'); }
+  function readCatalogOrder(){ return JSON.parse(localStorage.getItem(CATALOG_ORDER_KEY) || '[]'); }
+
+  // Summarize tx for a specific catalogId
+  function summarizeForCatalog(catalogId){
+    const tx = readTx();
+    const rec = {}; const sold = {}; let recValue=0, soldValue=0;
+    tx.forEach(t=>{
+      if((t.catalogId || '') !== (catalogId || '')) return;
+      const name = t.name || '—';
+      const qty = Number(t.qty || 0);
+      const price = Number(t.price || 0);
+      if(t.sale){
+        sold[name] = (sold[name] || 0) + qty;
+        soldValue += qty * price;
+      } else {
+        rec[name] = (rec[name] || 0) + qty;
+        recValue += qty * price;
+      }
+    });
+    return { rec, sold, recValue, soldValue };
+  }
+
+  // Build combined products map for a catalog: returns array of rows {name, received, sold, remaining, price}
+  function buildProductRows(catalogId){
+    const { rec, sold } = summarizeForCatalog(catalogId);
+    const prodList = readProducts() || [];
+    // Map prices from published products (fallback to 0)
+    const priceMap = {};
+    prodList.forEach(p => { if(p && p.name) priceMap[p.name] = Number(p.price || 0); });
+
+    const names = new Set([...Object.keys(rec), ...Object.keys(sold), ...Object.keys(priceMap)]);
+    const rows = [];
+    names.forEach(n => {
+      const r = rec[n] || 0;
+      const s = sold[n] || 0;
+      const price = priceMap[n] !== undefined ? priceMap[n] : 0;
+      rows.push({ name: n, received: r, sold: s, remaining: r - s, price });
+    });
+    return rows;
+  }
+
+  // Render functions
+  function renderSummaryPanel(catalogId, prefix){
+    // prefix is 'today' or 'y'
+    const out = summarizeForCatalog(catalogId || '');
+    const recTotal = Object.values(out.rec).reduce((a,b)=>a+b,0);
+    const soldTotal = Object.values(out.sold).reduce((a,b)=>a+b,0);
+    const remainingTotal = recTotal - soldTotal;
+    document.getElementById(prefix + 'ReceivedVal').textContent = recTotal;
+    document.getElementById(prefix + 'SoldVal').textContent = soldTotal;
+    document.getElementById(prefix + 'RemainingVal').textContent = remainingTotal;
+    document.getElementById((prefix === 'today' ? 'todayTotal' : 'yTotal')).textContent = '₹' + (out.soldValue || 0).toFixed(2);
+    document.getElementById(prefix + 'Details').textContent = Object.keys(out.rec).length || Object.keys(out.sold).length ? 
+      `Products received: ${Object.keys(out.rec).length}, products sold: ${Object.keys(out.sold).length}` : 'No transactions';
+  }
+
+  function renderStockTable(){
+    const order = readCatalogOrder() || [];
+    const todayId = order[0];
+    const rows = buildProductRows(todayId);
+    const tbody = document.querySelector('#stockTable tbody');
+    tbody.innerHTML = '';
+
+    // read UI preferences
+    const threshold = Number(document.getElementById('lowThreshold').value || 0);
+    const sortDir = document.getElementById('sortDir').value || 'asc';
+
+    rows.sort((a,b) => {
+      if(sortDir === 'asc') return a.remaining - b.remaining || a.name.localeCompare(b.name);
+      return b.remaining - a.remaining || a.name.localeCompare(b.name);
+    });
+
+    rows.forEach(r => {
+      const tr = document.createElement('tr');
+      // color classes
+      if(r.remaining <= 0) tr.className = 'low2';
+      else if(r.remaining <= threshold) tr.className = 'low1';
+      tr.innerHTML = `
+        <td>${r.name}</td>
+        <td>${r.received}</td>
+        <td>${r.sold}</td>
+        <td>${r.remaining < 0 ? r.remaining + ' (oversold)' : r.remaining}</td>
+        <td>₹${Number(r.price||0).toFixed(2)}</td>
+      `;
+      tbody.appendChild(tr);
+    });
+
+    // totals for table footer (optional)
+    const totalRec = rows.reduce((s,x)=>s + (x.received||0),0);
+    const totalSold = rows.reduce((s,x)=>s + (x.sold||0),0);
+    const totalRem = rows.reduce((s,x)=>s + (x.remaining||0),0);
+
+    // update summary big numbers
+    document.getElementById('todayReceivedVal').textContent = totalRec;
+    document.getElementById('todaySoldVal').textContent = totalSold;
+    document.getElementById('todayRemainingVal').textContent = totalRem;
+  }
+
+  function renderAll(){
+    const order = readCatalogOrder() || [];
+    const todayId = order[0] || null;
+    const yesterdayId = order[1] || null;
+
+    // meta info
+    document.getElementById('todayMeta').textContent = todayId ? `Catalog: ${todayId}` : 'No active catalog';
+    document.getElementById('yMeta').textContent = yesterdayId ? `Catalog: ${yesterdayId}` : 'No previous catalog';
+
+    renderSummaryPanel(todayId, 'today');
+    renderSummaryPanel(yesterdayId, 'y');
+
+    renderStockTable();
+    // render details text for panels
+    // show top 5 sold items quick
+    function topItemsFor(catalogId){
+      const rows = buildProductRows(catalogId || '');
+      const sold = rows.filter(r=>r.sold>0).sort((a,b)=>b.sold - a.sold).slice(0,6);
+      return sold.length ? sold.map(s=>`${s.name}×${s.sold}`).join(' • ') : 'No sales';
+    }
+    document.getElementById('todayDetails').textContent = 'Top sold: ' + topItemsFor(todayId);
+    document.getElementById('yDetails').textContent = 'Top sold: ' + topItemsFor(yesterdayId);
+  }
+
+  // Exports
+  function downloadJSON(key, filename){
+    const data = localStorage.getItem(key) || '[]';
+    const blob = new Blob([data], {type:'application/json'});
+    const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = filename; a.click();
+    URL.revokeObjectURL(a.href);
+  }
+
+  function exportProductsCsv(){
+    const order = readCatalogOrder() || [];
+    const todayId = order[0] || '';
+    const rows = buildProductRows(todayId);
+    const cols = ['Product','Received','Sold','Remaining','UnitPrice'];
+    const csv = [cols.join(',')].concat(rows.map(r=>{
+      return [r.name, r.received, r.sold, r.remaining, Number(r.price||0).toFixed(2)].map(v=>`"${String(v).replace(/"/g,'""')}"`).join(',');
+    })).join('\n');
+    const blob = new Blob([csv], {type:'text/csv;charset=utf-8;'});
+    const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = 'product_stock_today.csv'; a.click();
+    URL.revokeObjectURL(a.href);
+  }
+
+  // Clear all data
+  function clearAll(){
+    if(!confirm('Delete all transactions, products and cart from local storage?')) return;
+    localStorage.removeItem(TX_KEY);
+    localStorage.removeItem(PROD_KEY);
+    localStorage.removeItem(CART_KEY);
+    localStorage.removeItem(CATALOG_ORDER_KEY);
+    // notify others
+    if(bc) bc.postMessage({type:'tx-cleared'});
+    else localStorage.setItem('milkshop_signal', Date.now().toString());
+    renderAll();
+  }
+
+  // Hooks / events
+  document.getElementById('downloadTx').addEventListener('click', ()=> downloadJSON(TX_KEY, 'milk_tx_v1.json'));
+  document.getElementById('exportAllCsv').addEventListener('click', exportProductsCsv);
+  document.getElementById('printBtn').addEventListener('click', ()=> window.print());
+  document.getElementById('clearAll').addEventListener('click', clearAll);
+
+  // When threshold or sort changes, re-render
+  document.getElementById('lowThreshold').addEventListener('change', renderAll);
+  document.getElementById('sortDir').addEventListener('change', renderAll);
+
+  // Live update: BroadcastChannel or storage event fallback
+  if(bc){
+    bc.onmessage = function(ev){
+      const t = ev.data && ev.data.type;
+      // Re-render on any of the common events other pages post
+      if(['tx-added','tx-added-batch','products-published','products-cleared','tx-cleared','cart-change'].includes(t)) renderAll();
+    };
+  } else {
+    window.addEventListener('storage', function(e){
+      if([TX_KEY, PROD_KEY, CATALOG_ORDER_KEY, 'milkshop_signal'].includes(e.key)) renderAll();
+    });
+  }
+
+  // Initial render and periodic safety refresh
+  renderAll();
+  setInterval(renderAll, 1500);
+
+})();
+</script>
+</body>
+</html>

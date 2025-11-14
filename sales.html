@@ -1,0 +1,224 @@
+<!doctype html>
+<html>
+<head>
+<meta charset="utf-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1"/>
+<title>Sales — Daily</title>
+<style>
+  body{font-family:Arial;margin:12px;max-width:900px}
+  .panel{background:#fff;padding:12px;border-radius:8px;box-shadow:0 1px 3px rgba(0,0,0,.06);margin-top:10px}
+  .productsGrid{display:flex;gap:10px;flex-wrap:wrap;margin-top:10px}
+  .product{background:#f8fafc;padding:10px;border-radius:8px;width:220px}
+  .product h3{margin:0 0 6px 0;font-size:16px}
+  .price{color:#555;margin-bottom:8px}
+  .row{display:flex;gap:6px;align-items:center}
+  input[type=number]{width:65px;padding:6px;border:1px solid #ddd;border-radius:6px}
+  button{padding:8px;border:0;border-radius:6px;background:#0b74ff;color:#fff;cursor:pointer}
+  .danger{background:#ff4d4f}
+  table{width:100%;border-collapse:collapse;margin-top:12px}
+  th,td{padding:8px;border-bottom:1px solid #eee;font-size:14px;text-align:left}
+  .muted{color:#666;font-size:13px}
+</style>
+</head>
+<body>
+
+<header><h1>Sales — Daily Entry</h1></header>
+
+<div class="panel">
+  <div class="muted">All products come automatically from catalog. Set qty and click Add to list.</div>
+
+  <!-- Auto-loaded product cards -->
+  <div id="productsGrid" class="productsGrid"></div>
+
+  <!-- Sales table -->
+  <table id="salesTable">
+    <thead><tr><th>Item</th><th>Price</th><th>Qty</th><th>Sub total</th><th></th></tr></thead>
+    <tbody></tbody>
+  </table>
+
+  <div style="margin-top:12px;display:flex;gap:8px">
+    <button id="saveSales">Save Sales → Today</button>
+    <button id="clearSales" class="danger">Clear Sales</button>
+    <a href="dashboard.html" style="margin-left:auto"><button>Dashboard</button></a>
+  </div>
+</div>
+
+<script>
+(() => {
+  const PROD_KEY = "milk_products_v1";
+  const SALES_KEY = "milk_sales_v1";
+  const TX_KEY = "milk_tx_v1";
+  const ORDER_KEY = "milk_catalog_order_v1";
+  const bc = ("BroadcastChannel" in window) ? new BroadcastChannel("milkshop_channel") : null;
+
+  // Load and save
+  function loadSales(){ return JSON.parse(localStorage.getItem(SALES_KEY) || "[]"); }
+  function saveSales(x){ localStorage.setItem(SALES_KEY, JSON.stringify(x)); broadcast(); }
+
+  function broadcast(){
+    if(bc) bc.postMessage({type:"sales-list-changed"});
+    else localStorage.setItem("milkshop_signal", Date.now().toString());
+  }
+
+  // Build product cards from published catalog
+  function loadProducts(){
+    const raw = localStorage.getItem(PROD_KEY);
+    if(!raw){ 
+      document.getElementById("productsGrid").innerHTML = "<div>No products published.</div>";
+      return;
+    }
+
+    let list = [];
+    try { list = JSON.parse(raw); } catch {}
+
+    const grid = document.getElementById("productsGrid");
+    grid.innerHTML = "";
+
+    list.forEach(p => {
+      const card = document.createElement("div");
+      card.className = "product";
+      card.innerHTML = `
+        <h3>${p.name}</h3>
+        <div class="price">₹${p.price}</div>
+        <div class="row">
+          <input type="number" min="1" value="1" class="qty"/>
+          <button class="addBtn">Add</button>
+        </div>
+      `;
+
+      const qty = card.querySelector(".qty");
+      const addBtn = card.querySelector(".addBtn");
+
+      addBtn.addEventListener("click",()=>{
+        const q = Number(qty.value) || 0;
+        if(q <= 0) return alert("Enter valid quantity");
+
+        let s = loadSales();
+        const exist = s.find(i => i.name === p.name);
+
+        if(exist) exist.qty += q;
+        else s.push({ name:p.name, price:p.price, qty:q });
+
+        saveSales(s);
+        render();
+        addBtn.textContent = "Added";
+        setTimeout(()=> addBtn.textContent="Add",300);
+      });
+
+      grid.appendChild(card);
+    });
+  }
+
+  // Render sales table
+  function render(){
+    const tbody = document.querySelector("#salesTable tbody");
+    const items = loadSales();
+    tbody.innerHTML = "";
+
+    if(!items.length){
+      tbody.innerHTML = `<tr><td colspan="5" class="muted">No sales added</td></tr>`;
+      return;
+    }
+
+    items.forEach((it,idx)=>{
+      const sub = it.qty * it.price;
+      const tr = document.createElement("tr");
+      tr.innerHTML = `
+        <td>${it.name}</td>
+        <td>₹${it.price}</td>
+        <td><input type="number" min="0" value="${it.qty}" data-i="${idx}" class="qtyCell"/></td>
+        <td>₹${sub.toFixed(2)}</td>
+        <td><button class="remove" data-i="${idx}">X</button></td>
+      `;
+      tbody.appendChild(tr);
+    });
+
+    // qty change
+    document.querySelectorAll(".qtyCell").forEach(q=>{
+      q.addEventListener("change", e=>{
+        const i = e.target.dataset.i;
+        let s = loadSales();
+        s[i].qty = Math.max(0, Number(e.target.value)||0);
+        saveSales(s);
+        render();
+      });
+    });
+
+    // remove
+    document.querySelectorAll(".remove").forEach(btn=>{
+      btn.addEventListener("click",()=>{
+        const i = btn.dataset.i;
+        let s = loadSales();
+        s.splice(i,1);
+        saveSales(s);
+        render();
+      });
+    });
+  }
+
+  // Save sales to transactions
+  document.getElementById("saveSales").addEventListener("click",()=>{
+    const items = loadSales();
+    if(!items.length) return alert("No sales entered");
+
+    const order = JSON.parse(localStorage.getItem(ORDER_KEY) || "[]");
+    const catalogId = order[0] || ("catalog-" + new Date().toISOString().slice(0,10));
+
+    let tx = JSON.parse(localStorage.getItem(TX_KEY) || "[]");
+
+    items.forEach(it=>{
+      if(it.qty > 0){
+        tx.push({
+          id: Date.now().toString(36),
+          catalogId,
+          name: it.name,
+          price: it.price,
+          qty: it.qty,
+          time: new Date().toISOString(),
+          sale: true
+        });
+      }
+    });
+
+    localStorage.setItem(TX_KEY, JSON.stringify(tx));
+    localStorage.removeItem(SALES_KEY);
+    broadcast();
+    alert("Sales saved to Today");
+    render();
+  });
+
+  // clear sales list
+  document.getElementById("clearSales").addEventListener("click",()=>{
+    if(confirm("Clear all sales?")){
+      localStorage.removeItem(SALES_KEY);
+      broadcast();
+      render();
+    }
+  });
+
+  // external updates
+  if(bc){
+    bc.onmessage = ev=>{
+      const t = ev.data && ev.data.type;
+      if(["products-published","products-cleared","sales-list-changed"].includes(t)){
+        loadProducts();
+        render();
+      }
+    };
+  } else {
+    window.addEventListener("storage", e=>{
+      if([PROD_KEY,SALES_KEY,"milkshop_signal"].includes(e.key)){
+        loadProducts();
+        render();
+      }
+    });
+  }
+
+  // init
+  loadProducts();
+  render();
+})();
+</script>
+
+</body>
+</html>
