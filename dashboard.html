@@ -29,10 +29,7 @@
   .inline{display:inline-flex;align-items:center;gap:6px}
   .right{margin-left:auto}
   input[type=date]{padding:6px;border-radius:6px;border:1px solid #ddd}
-  select, input[type=number], input[type=text]{padding:6px;border-radius:6px;border:1px solid #ddd}
-  .small{font-size:12px;padding:6px 8px;border-radius:6px}
-  .notice{font-size:12px;color:#6b7280;margin-top:8px}
-  .flexcol{display:flex;flex-direction:column;gap:8px}
+  select, input[type=number]{padding:6px;border-radius:6px;border:1px solid #ddd}
   @media(max-width:900px){ .two{grid-template-columns:1fr} }
 </style>
 </head>
@@ -41,7 +38,7 @@
   <header>
     <div>
       <h1>Dashboard — Stock & Sales</h1>
-      <div class="muted">Live view: Received (morning), Sales (today), Remaining. Uses local storage. Choose Catalog view or a specific day.</div>
+      <div class="muted">Live view: Received (morning), Sales (today), Remaining. Uses local storage. Pick a day from the calendar to view/download that day's data.</div>
     </div>
 
     <div class="inline">
@@ -84,27 +81,6 @@
       <button id="exportAllCsv" class="btn btn ghost">Export Products CSV</button>
       <button id="printBtn" class="btn btn ghost">Print / Save PDF</button>
       <button id="clearAll" class="btn danger">Clear All</button>
-    </div>
-
-    <div style="width:100%;margin-top:8px" class="flexcol">
-      <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
-        <div class="inline"><input id="countsDays" type="number" class="small" value="10" min="1" style="width:72px"/><label class="mutedSmall">days</label></div>
-        <button id="showCounts" class="btn small">Show counts (last N days)</button>
-        <div style="margin-left:8px" class="inline">
-          <label class="mutedSmall">Range start</label>
-          <input id="rangeStart" type="date" class="small"/>
-          <label class="mutedSmall">end</label>
-          <input id="rangeEnd" type="date" class="small"/>
-          <button id="exportRangeJson" class="btn small">Export Range JSON</button>
-          <button id="exportRangeCsv" class="btn small btn ghost">Export Range CSV</button>
-        </div>
-        <div style="margin-left:auto" class="inline">
-          <button id="backupNow" class="btn small">Backup Now (download)</button>
-          <label style="margin-left:6px;" class="mutedSmall">Auto-backup</label>
-          <input id="autoBackupToggle" type="checkbox" title="Store daily backup in localStorage (uses space)" />
-        </div>
-      </div>
-      <div id="countsOutput" class="notice"></div>
     </div>
   </div>
 
@@ -167,7 +143,6 @@
   const CATALOG_ORDER_KEY = 'milk_catalog_order_v1';
   const CART_KEY = 'milk_cart_v1';
   const SELECTED_DATE_KEY = 'milk_selected_date_v1';
-  const BACKUP_PREFIX = 'milk_backup_'; // stored as milk_backup_YYYY-MM-DD
 
   const bc = ('BroadcastChannel' in window) ? new BroadcastChannel('milkshop_channel') : null;
 
@@ -177,22 +152,22 @@
   function readProducts(){ return JSON.parse(localStorage.getItem(PROD_KEY) || '[]'); }
   function readCatalogOrder(){ return JSON.parse(localStorage.getItem(CATALOG_ORDER_KEY) || '[]'); }
 
-  // Robust date normalizer -> returns 'YYYY-MM-DD' or null
+  // Robust date normalizer -> always returns 'YYYY-MM-DD' or null
   function txDateString(t){
     if(!t) return null;
     if(t.date && typeof t.date === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(t.date)) return t.date;
-    const cand = [t.ts, t.time, t.timestamp, t.t, t.createdAt, t.created_at, t.created, t.createdOn, t.date];
-    for(const v of cand){
-      if(v === undefined || v === null) continue;
-      if(typeof v === 'number' || (/^\d+$/.test(String(v)))){
-        const n = Number(v);
+    const candFields = [t.ts, t.time, t.timestamp, t.t, t.createdAt, t.created_at, t.created, t.createdOn, t.date];
+    for(const c of candFields){
+      if(c === undefined || c === null) continue;
+      if(typeof c === 'number' || (/^\d+$/.test(String(c)))){
+        const n = Number(c);
         if(!isNaN(n)){
           const date = new Date(n > 1e12 ? n : n * 1000);
           if(!isNaN(date.getTime())) return date.toISOString().slice(0,10);
         }
       }
       try {
-        const date = new Date(v);
+        const date = new Date(c);
         if(!isNaN(date.getTime())) return date.toISOString().slice(0,10);
       } catch(e){}
     }
@@ -204,7 +179,7 @@
     return null;
   }
 
-  // Summaries
+  // Summaries and build rows
   function summarizeForCatalog(catalogId){
     const tx = readTx();
     const rec = {}; const sold = {}; let recValue=0, soldValue=0;
@@ -244,7 +219,6 @@
     return { rec, sold, recValue, soldValue };
   }
 
-  // Build product rows
   function buildProductRows(filterVal, filterType){
     const out = (filterType === 'date') ? summarizeForDate(filterVal || '') : summarizeForCatalog(filterVal || '');
     const rec = out.rec || {};
@@ -264,7 +238,7 @@
     return rows;
   }
 
-  // Render functions
+  // Render
   function renderSummaryPanel(filterVal, filterType, prefix){
     const out = (filterType === 'date') ? summarizeForDate(filterVal || '') : summarizeForCatalog(filterVal || '');
     const recTotal = Object.values(out.rec || {}).reduce((a,b)=>a+b,0);
@@ -368,7 +342,6 @@
     URL.revokeObjectURL(a.href);
   }
 
-  // Download transactions for a single date
   function downloadTxForDate(dateStr){
     if(!dateStr){ alert('No date selected'); return; }
     const tx = readTx();
@@ -381,88 +354,23 @@
     URL.revokeObjectURL(a.href);
   }
 
-  // Export range (inclusive)
-  function exportRangeToJson(startDateISO, endDateISO){
-    if(!startDateISO || !endDateISO){ alert('Pick start and end dates'); return; }
-    const tx = readTx();
-    const filtered = tx.filter(t=>{
-      const d = txDateString(t);
-      return d && d >= startDateISO && d <= endDateISO;
-    });
-    const blob = new Blob([JSON.stringify(filtered, null, 2)], {type:'application/json'});
-    const a = document.createElement('a');
-    a.href = URL.createObjectURL(blob);
-    a.download = `milk_tx_${startDateISO}_to_${endDateISO}.json`;
-    a.click();
-    URL.revokeObjectURL(a.href);
-  }
-
-  function exportRangeToCsv(startDateISO, endDateISO){
-    if(!startDateISO || !endDateISO){ alert('Pick start and end dates'); return; }
-    const tx = readTx();
-    const rows = tx.filter(t=>{
-      const d = txDateString(t);
-      return d && d >= startDateISO && d <= endDateISO;
-    }).map(t=>{
-      return {
-        date: txDateString(t) || '',
-        name: t.name||'',
-        qty: t.qty||0,
-        price: t.price||0,
-        sale: t.sale?1:0
-      };
-    });
-    if(!rows.length){ alert('No records in range'); return; }
-    const cols = Object.keys(rows[0]);
-    const csv = [cols.join(',')].concat(rows.map(r=> cols.map(c=> `"${String(r[c]).replace(/"/g,'""')}"`).join(',') )).join('\n');
-    const blob = new Blob([csv], {type:'text/csv;charset=utf-8;'});
-    const a = document.createElement('a'); a.href = URL.createObjectURL(blob);
-    a.download = `milk_tx_${startDateISO}_to_${endDateISO}.csv`; a.click(); URL.revokeObjectURL(a.href);
-  }
-
-  // Counts for last N days
-  function countsForLastNDays(n){
-    n = Number(n || 10);
-    const tx = readTx();
-    const out = {};
-    for(let i=0;i<n;i++){
-      const d = new Date(); d.setDate(d.getDate() - i);
-      const key = d.toISOString().slice(0,10);
-      out[key] = 0;
+  function exportProductsCsv(){
+    const order = readCatalogOrder() || [];
+    const viewMode = document.getElementById('viewMode').value || 'catalog';
+    let filterType = 'catalog';
+    let filterVal = order[0] || '';
+    if(viewMode === 'day'){
+      filterType = 'date';
+      filterVal = localStorage.getItem(SELECTED_DATE_KEY) || document.getElementById('datePicker').value || '';
     }
-    tx.forEach(t=>{
-      const ds = txDateString(t);
-      if(ds && out.hasOwnProperty(ds)) out[ds] = out[ds] + 1;
-    });
-    return out;
-  }
-
-  // Simple backup: download full txs now
-  function backupNowDownload(){
-    const tx = readTx();
-    const blob = new Blob([JSON.stringify(tx, null, 2)], {type:'application/json'});
-    const a = document.createElement('a');
-    a.href = URL.createObjectURL(blob);
-    const today = new Date().toISOString().slice(0,10);
-    a.download = `milk_tx_full_backup_${today}.json`;
-    a.click();
+    const rows = buildProductRows(filterVal, filterType);
+    const cols = ['Product','Received','Sold','Remaining','UnitPrice'];
+    const csv = [cols.join(',')].concat(rows.map(r=>{
+      return [r.name, r.received, r.sold, r.remaining, Number(r.price||0).toFixed(2)].map(v=>`"${String(v).replace(/"/g,'""')}"`).join(',');
+    })).join('\n');
+    const blob = new Blob([csv], {type:'text/csv;charset=utf-8;'});
+    const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = 'product_stock_view.csv'; a.click();
     URL.revokeObjectURL(a.href);
-  }
-
-  // Auto-backup: store a copy in localStorage under milk_backup_YYYY-MM-DD
-  function autoBackupToday(){
-    try {
-      const today = new Date().toISOString().slice(0,10);
-      const key = BACKUP_PREFIX + today;
-      // if exists, keep it (no overwrite) — create once per day
-      if(localStorage.getItem(key)) return;
-      const tx = localStorage.getItem(TX_KEY) || '[]';
-      localStorage.setItem(key, tx);
-      // optionally record backups index
-      const idx = JSON.parse(localStorage.getItem(BACKUP_PREFIX + 'index') || '[]');
-      idx.push({date: today, key: key, createdAt: new Date().toISOString()});
-      localStorage.setItem(BACKUP_PREFIX + 'index', JSON.stringify(idx));
-    } catch(e){ console.warn('Auto-backup failed', e); }
   }
 
   // Clear all data
@@ -483,22 +391,7 @@
     const dateStr = localStorage.getItem(SELECTED_DATE_KEY) || document.getElementById('datePicker').value || '';
     downloadTxForDate(dateStr);
   });
-  document.getElementById('exportAllCsv').addEventListener('click', ()=> {
-    // export current view's products CSV (existing behavior)
-    const order = readCatalogOrder() || [];
-    const viewMode = document.getElementById('viewMode').value || 'catalog';
-    let filterType = 'catalog';
-    let filterVal = order[0] || '';
-    if(viewMode === 'day'){ filterType='date'; filterVal = localStorage.getItem(SELECTED_DATE_KEY) || document.getElementById('datePicker').value || ''; }
-    const rows = buildProductRows(filterVal, filterType);
-    const cols = ['Product','Received','Sold','Remaining','UnitPrice'];
-    const csv = [cols.join(',')].concat(rows.map(r=>{
-      return [r.name, r.received, r.sold, r.remaining, Number(r.price||0).toFixed(2)].map(v=>`"${String(v).replace(/"/g,'""')}"`).join(',');
-    })).join('\n');
-    const blob = new Blob([csv], {type:'text/csv;charset=utf-8;'});
-    const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = 'product_stock_view.csv'; a.click();
-    URL.revokeObjectURL(a.href);
-  });
+  document.getElementById('exportAllCsv').addEventListener('click', exportProductsCsv);
   document.getElementById('printBtn').addEventListener('click', ()=> window.print());
   document.getElementById('clearAll').addEventListener('click', clearAll);
 
@@ -522,33 +415,7 @@
     renderAll();
   });
 
-  // counts and range exports
-  document.getElementById('showCounts').addEventListener('click', ()=>{
-    const n = Number(document.getElementById('countsDays').value || 10);
-    const out = countsForLastNDays(n);
-    const lines = Object.keys(out).map(k=>`${k}: ${out[k]} tx`);
-    document.getElementById('countsOutput').textContent = lines.join(' • ');
-  });
-
-  document.getElementById('exportRangeJson').addEventListener('click', ()=>{
-    const s = document.getElementById('rangeStart').value;
-    const e = document.getElementById('rangeEnd').value;
-    exportRangeToJson(s, e);
-  });
-  document.getElementById('exportRangeCsv').addEventListener('click', ()=>{
-    const s = document.getElementById('rangeStart').value;
-    const e = document.getElementById('rangeEnd').value;
-    exportRangeToCsv(s, e);
-  });
-
-  document.getElementById('backupNow').addEventListener('click', backupNowDownload);
-  document.getElementById('autoBackupToggle').addEventListener('change', (e)=>{
-    localStorage.setItem(BACKUP_PREFIX + 'enabled', e.target.checked ? '1' : '0');
-    // if enabling now, run today's backup immediately
-    if(e.target.checked) autoBackupToday();
-  });
-
-  // Live update: BroadcastChannel or storage event fallback
+  // Live update
   if(bc){
     bc.onmessage = function(ev){
       const t = ev.data && ev.data.type;
@@ -560,25 +427,13 @@
     });
   }
 
-  // Auto-backup runner: check once per minute whether we need to write today's backup (if enabled)
-  setInterval(()=>{
-    try {
-      const enabled = localStorage.getItem(BACKUP_PREFIX + 'enabled') === '1';
-      if(enabled) autoBackupToday();
-    } catch(e){}
-  }, 60 * 1000);
-
   // Initial state restore
   (function restore(){
     const savedDate = localStorage.getItem(SELECTED_DATE_KEY);
     if(savedDate) document.getElementById('datePicker').value = savedDate;
     const savedView = localStorage.getItem('milk_view_mode_v1') || 'catalog';
     document.getElementById('viewMode').value = savedView;
-    const autoEnabled = localStorage.getItem(BACKUP_PREFIX + 'enabled') === '1';
-    document.getElementById('autoBackupToggle').checked = !!autoEnabled;
     renderAll();
-    // run auto-backup immediately if enabled
-    if(autoEnabled) autoBackupToday();
   })();
 
   // periodic refresh
