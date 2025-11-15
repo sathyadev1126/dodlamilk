@@ -29,7 +29,10 @@
   .inline{display:inline-flex;align-items:center;gap:6px}
   .right{margin-left:auto}
   input[type=date]{padding:6px;border-radius:6px;border:1px solid #ddd}
-  select, input[type=number]{padding:6px;border-radius:6px;border:1px solid #ddd}
+  select, input[type=number], input[type=text]{padding:6px;border-radius:6px;border:1px solid #ddd}
+  .small{font-size:12px;padding:6px 8px;border-radius:6px}
+  .notice{font-size:12px;color:#6b7280;margin-top:8px}
+  .flexcol{display:flex;flex-direction:column;gap:8px}
   @media(max-width:900px){ .two{grid-template-columns:1fr} }
 </style>
 </head>
@@ -77,9 +80,31 @@
 
     <div class="inline right">
       <button id="downloadTx" class="btn">Download TX (JSON)</button>
+      <button id="downloadDayTx" class="btn">Download Day TX</button>
       <button id="exportAllCsv" class="btn btn ghost">Export Products CSV</button>
       <button id="printBtn" class="btn btn ghost">Print / Save PDF</button>
       <button id="clearAll" class="btn danger">Clear All</button>
+    </div>
+
+    <div style="width:100%;margin-top:8px" class="flexcol">
+      <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+        <div class="inline"><input id="countsDays" type="number" class="small" value="10" min="1" style="width:72px"/><label class="mutedSmall">days</label></div>
+        <button id="showCounts" class="btn small">Show counts (last N days)</button>
+        <div style="margin-left:8px" class="inline">
+          <label class="mutedSmall">Range start</label>
+          <input id="rangeStart" type="date" class="small"/>
+          <label class="mutedSmall">end</label>
+          <input id="rangeEnd" type="date" class="small"/>
+          <button id="exportRangeJson" class="btn small">Export Range JSON</button>
+          <button id="exportRangeCsv" class="btn small btn ghost">Export Range CSV</button>
+        </div>
+        <div style="margin-left:auto" class="inline">
+          <button id="backupNow" class="btn small">Backup Now (download)</button>
+          <label style="margin-left:6px;" class="mutedSmall">Auto-backup</label>
+          <input id="autoBackupToggle" type="checkbox" title="Store daily backup in localStorage (uses space)" />
+        </div>
+      </div>
+      <div id="countsOutput" class="notice"></div>
     </div>
   </div>
 
@@ -142,6 +167,7 @@
   const CATALOG_ORDER_KEY = 'milk_catalog_order_v1';
   const CART_KEY = 'milk_cart_v1';
   const SELECTED_DATE_KEY = 'milk_selected_date_v1';
+  const BACKUP_PREFIX = 'milk_backup_'; // stored as milk_backup_YYYY-MM-DD
 
   const bc = ('BroadcastChannel' in window) ? new BroadcastChannel('milkshop_channel') : null;
 
@@ -151,42 +177,34 @@
   function readProducts(){ return JSON.parse(localStorage.getItem(PROD_KEY) || '[]'); }
   function readCatalogOrder(){ return JSON.parse(localStorage.getItem(CATALOG_ORDER_KEY) || '[]'); }
 
-  // Helper: normalize a transaction's date to 'YYYY-MM-DD' if possible
+  // Robust date normalizer -> returns 'YYYY-MM-DD' or null
   function txDateString(t){
     if(!t) return null;
-    // If transaction already stores a date field in YYYY-MM-DD
     if(t.date && typeof t.date === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(t.date)) return t.date;
-    // If there is a timestamp-like field 'ts' or 'time'
-    const ts = t.ts || t.time || t.timestamp || t.t;
-    if(ts !== undefined && ts !== null){
-      // accept seconds or milliseconds
-      const n = Number(ts);
-      if(!isNaN(n)){
-        // heuristic: if > 1e12 treat as ms, if < 1e12 treat as s
-        const date = new Date(n > 1e12 ? n : n * 1000);
-        if(!isNaN(date.getTime())){
-          const y = date.getFullYear();
-          const m = String(date.getMonth()+1).padStart(2,'0');
-          const d = String(date.getDate()).padStart(2,'0');
-          return `${y}-${m}-${d}`;
+    const cand = [t.ts, t.time, t.timestamp, t.t, t.createdAt, t.created_at, t.created, t.createdOn, t.date];
+    for(const v of cand){
+      if(v === undefined || v === null) continue;
+      if(typeof v === 'number' || (/^\d+$/.test(String(v)))){
+        const n = Number(v);
+        if(!isNaN(n)){
+          const date = new Date(n > 1e12 ? n : n * 1000);
+          if(!isNaN(date.getTime())) return date.toISOString().slice(0,10);
         }
       }
+      try {
+        const date = new Date(v);
+        if(!isNaN(date.getTime())) return date.toISOString().slice(0,10);
+      } catch(e){}
     }
-    // Fallback: try parsing an ISO-like createdAt field
-    const maybe = t.createdAt || t.created_at || t.created;
-    if(maybe){
-      const d = new Date(maybe);
-      if(!isNaN(d.getTime())){
-        const y = d.getFullYear();
-        const m = String(d.getMonth()+1).padStart(2,'0');
-        const dd = String(d.getDate()).padStart(2,'0');
-        return `${y}-${m}-${dd}`;
-      }
-    }
+    try {
+      const s = JSON.stringify(t);
+      const m = s.match(/\d{4}-\d{2}-\d{2}/);
+      if(m) return m[0];
+    } catch(e){}
     return null;
   }
 
-  // Summarize tx for a specific catalogId (existing behaviour)
+  // Summaries
   function summarizeForCatalog(catalogId){
     const tx = readTx();
     const rec = {}; const sold = {}; let recValue=0, soldValue=0;
@@ -206,7 +224,6 @@
     return { rec, sold, recValue, soldValue };
   }
 
-  // Summarize tx for a specific ISO date string 'YYYY-MM-DD'
   function summarizeForDate(dateStr){
     const tx = readTx();
     const rec = {}; const sold = {}; let recValue=0, soldValue=0;
@@ -227,14 +244,12 @@
     return { rec, sold, recValue, soldValue };
   }
 
-  // Build combined products map for a catalog OR for a date: returns array of rows {name, received, sold, remaining, price}
-  // filterType: 'catalog' or 'date'
+  // Build product rows
   function buildProductRows(filterVal, filterType){
     const out = (filterType === 'date') ? summarizeForDate(filterVal || '') : summarizeForCatalog(filterVal || '');
     const rec = out.rec || {};
     const sold = out.sold || {};
     const prodList = readProducts() || [];
-    // Map prices from published products (fallback to 0)
     const priceMap = {};
     prodList.forEach(p => { if(p && p.name) priceMap[p.name] = Number(p.price || 0); });
 
@@ -249,7 +264,7 @@
     return rows;
   }
 
-  // Render functions (adapted to support both modes)
+  // Render functions
   function renderSummaryPanel(filterVal, filterType, prefix){
     const out = (filterType === 'date') ? summarizeForDate(filterVal || '') : summarizeForCatalog(filterVal || '');
     const recTotal = Object.values(out.rec || {}).reduce((a,b)=>a+b,0);
@@ -258,7 +273,8 @@
     document.getElementById(prefix + 'ReceivedVal').textContent = recTotal;
     document.getElementById(prefix + 'SoldVal').textContent = soldTotal;
     document.getElementById(prefix + 'RemainingVal').textContent = remainingTotal;
-    document.getElementById((prefix === 'today' ? 'todayTotal' : 'yTotal')).textContent = '₹' + ((out.soldValue || 0).toFixed ? (out.soldValue || 0).toFixed(2) : Number(out.soldValue||0).toFixed(2));
+    const soldVal = Number(out.soldValue || 0);
+    document.getElementById((prefix === 'today' ? 'todayTotal' : 'yTotal')).textContent = '₹' + soldVal.toFixed(2);
     document.getElementById(prefix + 'Details').textContent = ((Object.keys(out.rec || {}).length) || (Object.keys(out.sold || {}).length)) ?
       `Products received: ${Object.keys(out.rec || {}).length}, products sold: ${Object.keys(out.sold || {}).length}` : 'No transactions';
   }
@@ -278,7 +294,6 @@
     const tbody = document.querySelector('#stockTable tbody');
     tbody.innerHTML = '';
 
-    // read UI preferences
     const threshold = Number(document.getElementById('lowThreshold').value || 0);
     const sortDir = document.getElementById('sortDir').value || 'asc';
 
@@ -289,24 +304,20 @@
 
     rows.forEach(r => {
       const tr = document.createElement('tr');
-      // color classes
       if(r.remaining <= 0) tr.className = 'low2';
       else if(r.remaining <= threshold) tr.className = 'low1';
       tr.innerHTML = `\n        <td>${r.name}</td>\n        <td>${r.received}</td>\n        <td>${r.sold}</td>\n        <td>${r.remaining < 0 ? r.remaining + ' (oversold)' : r.remaining}</td>\n        <td>₹${Number(r.price||0).toFixed(2)}</td>\n      `;
       tbody.appendChild(tr);
     });
 
-    // totals for table footer (optional)
     const totalRec = rows.reduce((s,x)=>s + (x.received||0),0);
     const totalSold = rows.reduce((s,x)=>s + (x.sold||0),0);
     const totalRem = rows.reduce((s,x)=>s + (x.remaining||0),0);
 
-    // update summary big numbers
     document.getElementById('todayReceivedVal').textContent = totalRec;
     document.getElementById('todaySoldVal').textContent = totalSold;
     document.getElementById('todayRemainingVal').textContent = totalRem;
 
-    // meta label
     if(filterType === 'date'){
       document.getElementById('todayMeta').textContent = filterVal ? `Day: ${filterVal}` : 'No day selected';
     } else {
@@ -319,15 +330,12 @@
     const todayId = order[0] || null;
     const yesterdayId = order[1] || null;
 
-    // meta for the right panel (unchanged: show catalog IDs if present)
     document.getElementById('yMeta').textContent = yesterdayId ? `Catalog: ${yesterdayId}` : 'No previous catalog';
 
-    // Primary: depends on view mode
     const viewMode = document.getElementById('viewMode').value || 'catalog';
     if(viewMode === 'day'){
       const selectedDate = localStorage.getItem(SELECTED_DATE_KEY) || document.getElementById('datePicker').value || '';
       renderSummaryPanel(selectedDate, 'date', 'today');
-      // for 'previous' panel we can show the catalog yesterday as backup
       renderSummaryPanel(yesterdayId, 'catalog', 'y');
     } else {
       renderSummaryPanel(todayId, 'catalog', 'today');
@@ -336,7 +344,6 @@
 
     renderStockTable();
 
-    // render details text for panels
     function topItemsFor(filterVal, filterType){
       const rows = buildProductRows(filterVal || '', filterType || 'catalog');
       const sold = rows.filter(r=>r.sold>0).sort((a,b)=>b.sold - a.sold).slice(0,6);
@@ -361,23 +368,101 @@
     URL.revokeObjectURL(a.href);
   }
 
-  function exportProductsCsv(){
-    const order = readCatalogOrder() || [];
-    const viewMode = document.getElementById('viewMode').value || 'catalog';
-    let filterType = 'catalog';
-    let filterVal = order[0] || '';
-    if(viewMode === 'day'){
-      filterType = 'date';
-      filterVal = localStorage.getItem(SELECTED_DATE_KEY) || document.getElementById('datePicker').value || '';
-    }
-    const rows = buildProductRows(filterVal, filterType);
-    const cols = ['Product','Received','Sold','Remaining','UnitPrice'];
-    const csv = [cols.join(',')].concat(rows.map(r=>{
-      return [r.name, r.received, r.sold, r.remaining, Number(r.price||0).toFixed(2)].map(v=>`"${String(v).replace(/"/g,'""')}"`).join(',');
-    })).join('\n');
-    const blob = new Blob([csv], {type:'text/csv;charset=utf-8;'});
-    const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = 'product_stock_view.csv'; a.click();
+  // Download transactions for a single date
+  function downloadTxForDate(dateStr){
+    if(!dateStr){ alert('No date selected'); return; }
+    const tx = readTx();
+    const filtered = tx.filter(t => txDateString(t) === dateStr);
+    const blob = new Blob([JSON.stringify(filtered, null, 2)], {type:'application/json'});
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    a.download = `milk_tx_${dateStr}.json`;
+    a.click();
     URL.revokeObjectURL(a.href);
+  }
+
+  // Export range (inclusive)
+  function exportRangeToJson(startDateISO, endDateISO){
+    if(!startDateISO || !endDateISO){ alert('Pick start and end dates'); return; }
+    const tx = readTx();
+    const filtered = tx.filter(t=>{
+      const d = txDateString(t);
+      return d && d >= startDateISO && d <= endDateISO;
+    });
+    const blob = new Blob([JSON.stringify(filtered, null, 2)], {type:'application/json'});
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    a.download = `milk_tx_${startDateISO}_to_${endDateISO}.json`;
+    a.click();
+    URL.revokeObjectURL(a.href);
+  }
+
+  function exportRangeToCsv(startDateISO, endDateISO){
+    if(!startDateISO || !endDateISO){ alert('Pick start and end dates'); return; }
+    const tx = readTx();
+    const rows = tx.filter(t=>{
+      const d = txDateString(t);
+      return d && d >= startDateISO && d <= endDateISO;
+    }).map(t=>{
+      return {
+        date: txDateString(t) || '',
+        name: t.name||'',
+        qty: t.qty||0,
+        price: t.price||0,
+        sale: t.sale?1:0
+      };
+    });
+    if(!rows.length){ alert('No records in range'); return; }
+    const cols = Object.keys(rows[0]);
+    const csv = [cols.join(',')].concat(rows.map(r=> cols.map(c=> `"${String(r[c]).replace(/"/g,'""')}"`).join(',') )).join('\n');
+    const blob = new Blob([csv], {type:'text/csv;charset=utf-8;'});
+    const a = document.createElement('a'); a.href = URL.createObjectURL(blob);
+    a.download = `milk_tx_${startDateISO}_to_${endDateISO}.csv`; a.click(); URL.revokeObjectURL(a.href);
+  }
+
+  // Counts for last N days
+  function countsForLastNDays(n){
+    n = Number(n || 10);
+    const tx = readTx();
+    const out = {};
+    for(let i=0;i<n;i++){
+      const d = new Date(); d.setDate(d.getDate() - i);
+      const key = d.toISOString().slice(0,10);
+      out[key] = 0;
+    }
+    tx.forEach(t=>{
+      const ds = txDateString(t);
+      if(ds && out.hasOwnProperty(ds)) out[ds] = out[ds] + 1;
+    });
+    return out;
+  }
+
+  // Simple backup: download full txs now
+  function backupNowDownload(){
+    const tx = readTx();
+    const blob = new Blob([JSON.stringify(tx, null, 2)], {type:'application/json'});
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    const today = new Date().toISOString().slice(0,10);
+    a.download = `milk_tx_full_backup_${today}.json`;
+    a.click();
+    URL.revokeObjectURL(a.href);
+  }
+
+  // Auto-backup: store a copy in localStorage under milk_backup_YYYY-MM-DD
+  function autoBackupToday(){
+    try {
+      const today = new Date().toISOString().slice(0,10);
+      const key = BACKUP_PREFIX + today;
+      // if exists, keep it (no overwrite) — create once per day
+      if(localStorage.getItem(key)) return;
+      const tx = localStorage.getItem(TX_KEY) || '[]';
+      localStorage.setItem(key, tx);
+      // optionally record backups index
+      const idx = JSON.parse(localStorage.getItem(BACKUP_PREFIX + 'index') || '[]');
+      idx.push({date: today, key: key, createdAt: new Date().toISOString()});
+      localStorage.setItem(BACKUP_PREFIX + 'index', JSON.stringify(idx));
+    } catch(e){ console.warn('Auto-backup failed', e); }
   }
 
   // Clear all data
@@ -387,7 +472,6 @@
     localStorage.removeItem(PROD_KEY);
     localStorage.removeItem(CART_KEY);
     localStorage.removeItem(CATALOG_ORDER_KEY);
-    // notify others
     if(bc) bc.postMessage({type:'tx-cleared'});
     else localStorage.setItem('milkshop_signal', Date.now().toString());
     renderAll();
@@ -395,15 +479,32 @@
 
   // Hooks / events
   document.getElementById('downloadTx').addEventListener('click', ()=> downloadJSON(TX_KEY, 'milk_tx_v1.json'));
-  document.getElementById('exportAllCsv').addEventListener('click', exportProductsCsv);
+  document.getElementById('downloadDayTx').addEventListener('click', ()=>{
+    const dateStr = localStorage.getItem(SELECTED_DATE_KEY) || document.getElementById('datePicker').value || '';
+    downloadTxForDate(dateStr);
+  });
+  document.getElementById('exportAllCsv').addEventListener('click', ()=> {
+    // export current view's products CSV (existing behavior)
+    const order = readCatalogOrder() || [];
+    const viewMode = document.getElementById('viewMode').value || 'catalog';
+    let filterType = 'catalog';
+    let filterVal = order[0] || '';
+    if(viewMode === 'day'){ filterType='date'; filterVal = localStorage.getItem(SELECTED_DATE_KEY) || document.getElementById('datePicker').value || ''; }
+    const rows = buildProductRows(filterVal, filterType);
+    const cols = ['Product','Received','Sold','Remaining','UnitPrice'];
+    const csv = [cols.join(',')].concat(rows.map(r=>{
+      return [r.name, r.received, r.sold, r.remaining, Number(r.price||0).toFixed(2)].map(v=>`"${String(v).replace(/"/g,'""')}"`).join(',');
+    })).join('\n');
+    const blob = new Blob([csv], {type:'text/csv;charset=utf-8;'});
+    const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = 'product_stock_view.csv'; a.click();
+    URL.revokeObjectURL(a.href);
+  });
   document.getElementById('printBtn').addEventListener('click', ()=> window.print());
   document.getElementById('clearAll').addEventListener('click', clearAll);
 
-  // When threshold, sort, view mode or date changes, re-render
   document.getElementById('lowThreshold').addEventListener('change', renderAll);
   document.getElementById('sortDir').addEventListener('change', renderAll);
   document.getElementById('viewMode').addEventListener('change', ()=>{
-    // If switching to day view and no date chosen, prefill with today
     const vm = document.getElementById('viewMode').value;
     if(vm === 'day' && !document.getElementById('datePicker').value){
       const today = new Date();
@@ -421,6 +522,32 @@
     renderAll();
   });
 
+  // counts and range exports
+  document.getElementById('showCounts').addEventListener('click', ()=>{
+    const n = Number(document.getElementById('countsDays').value || 10);
+    const out = countsForLastNDays(n);
+    const lines = Object.keys(out).map(k=>`${k}: ${out[k]} tx`);
+    document.getElementById('countsOutput').textContent = lines.join(' • ');
+  });
+
+  document.getElementById('exportRangeJson').addEventListener('click', ()=>{
+    const s = document.getElementById('rangeStart').value;
+    const e = document.getElementById('rangeEnd').value;
+    exportRangeToJson(s, e);
+  });
+  document.getElementById('exportRangeCsv').addEventListener('click', ()=>{
+    const s = document.getElementById('rangeStart').value;
+    const e = document.getElementById('rangeEnd').value;
+    exportRangeToCsv(s, e);
+  });
+
+  document.getElementById('backupNow').addEventListener('click', backupNowDownload);
+  document.getElementById('autoBackupToggle').addEventListener('change', (e)=>{
+    localStorage.setItem(BACKUP_PREFIX + 'enabled', e.target.checked ? '1' : '0');
+    // if enabling now, run today's backup immediately
+    if(e.target.checked) autoBackupToday();
+  });
+
   // Live update: BroadcastChannel or storage event fallback
   if(bc){
     bc.onmessage = function(ev){
@@ -433,13 +560,25 @@
     });
   }
 
+  // Auto-backup runner: check once per minute whether we need to write today's backup (if enabled)
+  setInterval(()=>{
+    try {
+      const enabled = localStorage.getItem(BACKUP_PREFIX + 'enabled') === '1';
+      if(enabled) autoBackupToday();
+    } catch(e){}
+  }, 60 * 1000);
+
   // Initial state restore
   (function restore(){
     const savedDate = localStorage.getItem(SELECTED_DATE_KEY);
     if(savedDate) document.getElementById('datePicker').value = savedDate;
     const savedView = localStorage.getItem('milk_view_mode_v1') || 'catalog';
     document.getElementById('viewMode').value = savedView;
+    const autoEnabled = localStorage.getItem(BACKUP_PREFIX + 'enabled') === '1';
+    document.getElementById('autoBackupToggle').checked = !!autoEnabled;
     renderAll();
+    // run auto-backup immediately if enabled
+    if(autoEnabled) autoBackupToday();
   })();
 
   // periodic refresh
