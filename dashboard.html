@@ -31,6 +31,54 @@
   input[type=date]{padding:6px;border-radius:6px;border:1px solid #ddd}
   select, input[type=number]{padding:6px;border-radius:6px;border:1px solid #ddd}
   @media(max-width:900px){ .two{grid-template-columns:1fr} }
+
+  /* --- MOBILE-ONLY STYLES (apply only on small screens) --- */
+  @media (max-width: 600px) {
+    /* base adjustments for mobile */
+    html { font-size: 16px; }
+    body { line-height: 1.45; font-size: 1rem; padding: 8px; }
+
+    /* spacing / card tweaks */
+    .wrap { padding: 12px; max-width: 100%; box-sizing: border-box; }
+    .card { padding: 12px; box-shadow: 0 2px 8px rgba(16,24,40,.04); }
+
+    /* stack header and controls */
+    header { flex-direction: column; align-items: flex-start; gap: 10px; }
+    .controls { gap: 10px; padding-bottom: 8px; width: 100%; }
+    .controls .inline.right { width: 100%; display:flex; gap:8px; flex-wrap:wrap; }
+    .controls .inline.right .btn { flex: 1 1 48%; min-height:44px; } /* two per row */
+
+    /* form controls and buttons (touch targets) */
+    .btn, button, input[type="date"], select, input[type="number"], input[type="text"] {
+      min-height: 44px;
+      padding: 0.5rem 0.75rem;
+      border-radius: 6px;
+      font-size: 0.95rem;
+      box-sizing: border-box;
+    }
+
+    /* single-column layout for panels */
+    .two { grid-template-columns: 1fr; gap: 10px; }
+
+    /* typography scale */
+    h1 { font-size: 1rem; }        /* ~16px */
+    .big { font-size: 1rem; }      /* ~16px */
+    .mutedSmall { font-size: 0.85rem; } /* ~14px */
+
+    /* responsive table: convert rows to card-like blocks */
+    #stockTable { display: block; width:100%; overflow-x:auto; -webkit-overflow-scrolling:touch; }
+    #stockTable thead { display: none; }              /* hide header on phones */
+    #stockTable tbody, #stockTable tr { display:block; }
+    #stockTable tr { background: #fff; margin-bottom: 10px; padding: 8px; border-radius: 8px; box-shadow: none; border: 1px solid #f1f1f1; }
+    #stockTable td { display:flex; justify-content:space-between; padding:6px 4px; border-bottom:0; font-size:0.95rem; }
+    #stockTable td[data-label]::before { content: attr(data-label); font-weight:600; margin-right:8px; color:#444; }
+
+    /* collapse action links */
+    header .inline a.btn { padding: 8px 12px; font-size: 0.95rem; min-height:44px; }
+
+    /* reduce heavy visuals */
+    .card { box-shadow: 0 2px 8px rgba(16,24,40,.04); border-radius:10px; }
+  }
 </style>
 </head>
 <body>
@@ -280,7 +328,13 @@
       const tr = document.createElement('tr');
       if(r.remaining <= 0) tr.className = 'low2';
       else if(r.remaining <= threshold) tr.className = 'low1';
-      tr.innerHTML = `\n        <td>${r.name}</td>\n        <td>${r.received}</td>\n        <td>${r.sold}</td>\n        <td>${r.remaining < 0 ? r.remaining + ' (oversold)' : r.remaining}</td>\n        <td>₹${Number(r.price||0).toFixed(2)}</td>\n      `;
+      tr.innerHTML = `
+        <td data-label="Product">${r.name}</td>
+        <td data-label="Morning Received">${r.received}</td>
+        <td data-label="Today Sales">${r.sold}</td>
+        <td data-label="Remaining">${r.remaining < 0 ? r.remaining + ' (oversold)' : r.remaining}</td>
+        <td data-label="Unit ₹">₹${Number(r.price||0).toFixed(2)}</td>
+      `;
       tbody.appendChild(tr);
     });
 
