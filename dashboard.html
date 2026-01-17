@@ -1,112 +1,4 @@
-<!doctype html>
-<html>
-<head>
-<meta charset="utf-8"/>
-<meta name="viewport" content="width=device-width,initial-scale=1"/>
-<title>Dashboard — Stock, Sales & Remaining (with Day Calendar)</title>
-<style>
-  :root{--bg:#f6f7fb;--card:#fff;--muted:#6b7280}
-  body{font-family:Inter,Arial,Helvetica,sans-serif;margin:12px;background:var(--bg);color:#111}
-  .wrap{max-width:1100px;margin:0 auto}
-  header{display:flex;justify-content:space-between;align-items:center;gap:12px}
-  h1{margin:0;font-size:20px}
-  .muted{color:var(--muted);font-size:13px}
-  .controls{display:flex;gap:8px;flex-wrap:wrap;margin-top:10px}
-  .card{background:var(--card);padding:12px;border-radius:10px;box-shadow:0 4px 18px rgba(16,24,40,.06);margin-top:12px}
-  .two{display:grid;grid-template-columns:1fr 1fr;gap:12px}
-  .sectionTitle{font-weight:700;margin-top:8px}
-  table{width:100%;border-collapse:collapse;margin-top:10px}
-  th,td{padding:8px;border-bottom:1px solid #eee;text-align:left;font-size:14px}
-  th{background:#fafafa;font-weight:600}
-  .big{font-size:18px;font-weight:700}
-  .btn{padding:8px 10px;border-radius:8px;border:0;background:#0b74ff;color:#fff;cursor:pointer}
-  .btn.ghost{background:#fff;color:#0b74ff;border:1px solid #dbeafe}
-  .btn.warn{background:#ffb020;color:#fff}
-  .btn.danger{background:#ff4d4f;color:#fff}
-  .mutedSmall{font-size:13px;color:#555}
-  .low1{background:linear-gradient(90deg,rgba(255,235,205,.4),transparent)}
-  .low2{background:linear-gradient(90deg,rgba(255,205,210,.45),transparent)}
-  .inline{display:inline-flex;align-items:center;gap:6px}
-  .right{margin-left:auto}
-  input[type=date]{padding:6px;border-radius:6px;border:1px solid #ddd}
-  select, input[type=number]{padding:6px;border-radius:6px;border:1px solid #ddd}
-  @media(max-width:900px){ .two{grid-template-columns:1fr} }
-</style>
-</head>
-<body>
-<div class="wrap">
-  <header>
-    <div>
-      <h1>Dashboard — Stock & Sales</h1>
-      <div class="muted">Live view: Received (morning), Sales (today), Remaining. Uses local storage. Pick a day from the calendar to view/download that day's data.</div>
-    </div>
-
-    <div class="inline">
-      <a href="catalog.html" class="btn">Catalog</a>
-      <a href="cart.html" class="btn btn ghost">Cart</a>
-      <a href="sales.html" class="btn btn ghost">Sales</a>
-    </div>
-  </header>
-
-  <div class="card controls">
-    <div class="inline">
-      <label class="mutedSmall">Low-stock threshold:</label>
-      <input id="lowThreshold" type="number" value="5" style="width:80px" />
-    </div>
-
-    <div class="inline">
-      <label class="mutedSmall">Sort by remaining:</label>
-      <select id="sortDir">
-        <option value="asc">Ascending (lowest first)</option>
-        <option value="desc">Descending (highest first)</option>
-      </select>
-    </div>
-
-    <div class="inline">
-      <label class="mutedSmall">View mode:</label>
-      <select id="viewMode" title="Choose Catalog (default) or Day view">
-        <option value="catalog">Catalog (default)</option>
-        <option value="day">Specific day</option>
-      </select>
-    </div>
-
-    <div class="inline">
-      <label class="mutedSmall">Pick day:</label>
-      <input id="datePicker" type="date" />
-    </div>
-
-    <div class="inline right">
-      <button id="downloadTx" class="btn">Download TX (JSON)</button>
-      <button id="downloadDayTx" class="btn">Download Day TX</button>
-      <button id="exportAllCsv" class="btn btn ghost">Export Products CSV</button>
-      <button id="printBtn" class="btn btn ghost">Print / Save PDF</button>
-      <button id="clearAll" class="btn danger">Clear All</button>
-    </div>
-  </div>
-
-  <div class="two">
-    <div class="card">
-      <div class="muted">Primary view</div>
-      <div style="display:flex;gap:10px;align-items:center">
-        <div class="big" id="todayTotal">₹0</div>
-        <div class="mutedSmall" id="todayMeta"></div>
-      </div>
-
-      <div class="sectionTitle">Summary</div>
-      <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-top:8px">
-        <div class="card" style="padding:8px"><div class="mutedSmall">Received</div><div id="todayReceivedVal" class="big">0</div></div>
-        <div class="card" style="padding:8px"><div class="mutedSmall">Sold</div><div id="todaySoldVal" class="big">0</div></div>
-        <div class="card" style="padding:8px"><div class="mutedSmall">Remaining</div><div id="todayRemainingVal" class="big">0</div></div>
-      </div>
-
-      <div class="sectionTitle">Details</div>
-      <div id="todayDetails" class="mutedSmall" style="margin-top:8px"></div>
-    </div>
-
-    <div class="card">
-      <div class="muted">Previous (backup view)</div>
-      <div style="display:flex;gap:10px;align-items:center">
-        <div class="big" id="yTotal">₹0</div>
+<!        <div class="big" id="yTotal">₹0</div>
         <div class="mutedSmall" id="yMeta"></div>
       </div>
 
@@ -130,12 +22,7 @@
       <thead>
         <tr><th>Product</th><th>Morning Received</th><th>Today Sales</th><th>Remaining</th><th>Unit ₹</th></tr>
       </thead>
-      <tbody></tbody>
-    </table>
-  </div>
-</div>
-
-<script>
+      <tbody>
 (function(){
   // Keys used by other pages
   const TX_KEY = 'milk_tx_v1';
@@ -443,3 +330,4 @@
 </script>
 </body>
 </html>  
+
