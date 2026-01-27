@@ -1,281 +1,626 @@
 <!DOCTYPE html>
-<html lang="en">
+<html>
 <head>
-<meta charset="UTF-8">
-<title>Due Management</title>
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Milk Khata Pro</title>
+<meta name="viewport" content="width=device-width, initial-scale=1">
 
 <style>
+* {
+  box-sizing: border-box;
+}
+
 body {
-  font-family: Arial, sans-serif;
-  background: #f1f5f9;
   margin: 0;
-  padding: 10px;
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Arial, sans-serif;
+  background: linear-gradient(135deg, #f5f7fa 0%, #c3cfe2 100%);
+  min-height: 100vh;
 }
 
-.container {
-  background: white;
-  padding: 15px;
-  max-width: 100%;
-  border-radius: 10px;
-  box-shadow: 0 0 10px rgba(0,0,0,0.1);
-}
-
-h2, h3 {
-  text-align: center;
-}
-
-.totalDue {
+/* HEADER */
+.header {
+  background: linear-gradient(135deg, #0b4fa2 0%, #1e60b7 100%);
+  color: white;
+  padding: 20px;
   text-align: center;
   font-size: 22px;
-  font-weight: bold;
-  color: #dc2626;
-  margin-bottom: 15px;
+  font-weight: 700;
+  box-shadow: 0 4px 12px rgba(11,79,162,0.3);
+  position: relative;
 }
 
-/* FORM */
-.row {
-  display: flex;
-  flex-direction: column;
-  margin-bottom: 10px;
+.header::after {
+  content: '🥛';
+  position: absolute;
+  right: 20px;
+  top: 50%;
+  transform: translateY(-50%);
+  font-size: 28px;
 }
 
-.row span {
-  margin-bottom: 4px;
-  font-size: 14px;
+/* SUMMARY CARDS */
+.summary {
+  background: white;
+  margin: 20px;
+  padding: 20px;
+  border-radius: 16px;
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 20px;
+  font-size: 16px;
+  box-shadow: 0 8px 32px rgba(0,0,0,0.1);
 }
 
-input {
+.summary div {
+  text-align: center;
+  padding: 15px;
+  border-radius: 12px;
+  background: linear-gradient(135deg, #f8fafc 0%, #e2e8f0 100%);
+}
+
+.green { color: #10b981; font-weight: 700; font-size: 24px; }
+.red { color: #ef4444; font-weight: 700; font-size: 24px; }
+
+/* SEARCH */
+.search {
+  margin: 0 20px 20px;
+}
+
+.search input {
   width: 100%;
-  padding: 10px;
+  padding: 16px 20px;
+  border-radius: 12px;
+  border: 2px solid #e2e8f0;
   font-size: 16px;
+  background: white;
+  transition: all 0.3s ease;
+  box-shadow: 0 4px 12px rgba(0,0,0,0.08);
 }
 
-button {
-  padding: 10px;
-  font-size: 16px;
+.search input:focus {
+  outline: none;
+  border-color: #0b4fa2;
+  box-shadow: 0 0 0 4px rgba(11,79,162,0.1);
+}
+
+/* CUSTOMER LIST */
+.list {
+  padding: 0 20px 100px;
+}
+
+.card {
+  background: white;
+  padding: 20px;
+  border-radius: 16px;
+  margin-bottom: 12px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  box-shadow: 0 4px 16px rgba(0,0,0,0.08);
+  border-left: 5px solid #0b4fa2;
+}
+
+.card:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 12px 32px rgba(0,0,0,0.15);
+}
+
+.name {
+  font-weight: 700;
+  font-size: 18px;
+  color: #1e293b;
+}
+
+.sub {
+  font-size: 14px;
+  color: #64748b;
+  margin-top: 4px;
+}
+
+/* FAB BUTTON */
+.add-btn {
+  position: fixed;
+  bottom: 25px;
+  right: 25px;
+  background: linear-gradient(135deg, #dc2626 0%, #b91c1c 100%);
+  color: white;
   border: none;
-  border-radius: 5px;
+  padding: 20px 24px;
+  border-radius: 50px;
+  font-weight: 700;
+  font-size: 16px;
+  box-shadow: 0 8px 24px rgba(220,38,38,0.4);
+  transition: all 0.3s ease;
   cursor: pointer;
 }
 
-.add {
-  width: 100%;
-  background: #2563eb;
+.add-btn:hover {
+  transform: scale(1.05);
+  box-shadow: 0 12px 32px rgba(220,38,38,0.5);
+}
+
+/* MODAL OVERLAY */
+.modal {
+  display: none;
+  position: fixed;
+  top: 0; left: 0; right: 0; bottom: 0;
+  background: rgba(0,0,0,0.6);
+  backdrop-filter: blur(8px);
+  z-index: 1000;
+  animation: fadeIn 0.3s ease;
+}
+
+@keyframes fadeIn {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+.box {
+  background: white;
+  height: 100%;
+  padding: 20px;
+  overflow-y: auto;
+  border-radius: 24px 24px 0 0;
+  margin-top: auto;
+}
+
+/* DETAIL HEADER */
+.d-header {
+  background: linear-gradient(135deg, #0b4fa2 0%, #1e60b7 100%);
   color: white;
-  margin-top: 10px;
-}
-.add:hover { background: #1e40af; }
-
-.whatsapp {
-  background: #22c55e;
-  color: white;
+  padding: 20px;
+  display: flex;
+  align-items: center;
+  border-radius: 20px 20px 0 0;
+  margin: -20px -20px 20px -20px;
 }
 
-.pay {
-  background: #16a34a;
-  color: white;
-}
-
-/* TABLE */
-.table-wrapper {
-  overflow-x: auto;
-}
-
-table {
-  width: 100%;
-  border-collapse: collapse;
-  margin-top: 10px;
-  font-size: 14px;
-  min-width: 600px;
-}
-
-th, td {
-  border: 1px solid #ccc;
+.back {
+  cursor: pointer;
+  font-size: 24px;
   padding: 8px;
+  border-radius: 50%;
+  transition: background 0.2s;
+}
+
+.back:hover {
+  background: rgba(255,255,255,0.2);
+}
+
+.d-name {
+  flex: 1;
+  font-weight: 700;
+  font-size: 20px;
   text-align: center;
 }
 
-.pending {
-  color: red;
-  font-weight: bold;
+.d-bal {
+  font-size: 18px;
+  font-weight: 600;
+  padding: 8px 16px;
+  background: rgba(255,255,255,0.2);
+  border-radius: 20px;
 }
 
-/* PAY INPUT */
-.pay-input {
-  width: 70px;
-  padding: 6px;
+/* ACTION BUTTONS */
+.action {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 16px;
+  padding: 20px;
+  background: #f8fafc;
+  border-radius: 16px;
+  margin-bottom: 20px;
+}
+
+.btn-bill {
+  background: linear-gradient(135deg, #2563eb 0%, #1d4ed8 100%);
+  color: white;
+  border: none;
+  padding: 16px 20px;
+  border-radius: 12px;
+  font-weight: 600;
+  font-size: 16px;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  box-shadow: 0 4px 12px rgba(37,99,235,0.3);
+}
+
+.btn-pay {
+  background: linear-gradient(135deg, #16a34a 0%, #15803d 100%);
+  color: white;
+  border: none;
+  padding: 16px 20px;
+  border-radius: 12px;
+  font-weight: 600;
+  font-size: 16px;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  box-shadow: 0 4px 12px rgba(22,163,74,0.3);
+}
+
+.btn-bill:hover, .btn-pay:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 8px 24px rgba(0,0,0,0.2);
+}
+
+/* INPUT FORM */
+.input {
+  padding: 20px;
+  background: white;
+  border-radius: 16px;
+  margin-bottom: 20px;
+  box-shadow: 0 4px 16px rgba(0,0,0,0.08);
+}
+
+.input input {
+  width: 100%;
+  padding: 16px;
+  margin: 12px 0;
+  border-radius: 12px;
+  border: 2px solid #e2e8f0;
+  font-size: 16px;
+  transition: all 0.3s ease;
+}
+
+.input input:focus {
+  outline: none;
+  border-color: #0b4fa2;
+  box-shadow: 0 0 0 4px rgba(11,79,162,0.1);
+}
+
+.input button {
+  width: 48%;
+  padding: 14px;
+  border: none;
+  border-radius: 12px;
+  font-weight: 600;
+  font-size: 16px;
+  cursor: pointer;
+  margin: 6px 1%;
+}
+
+.btn-save {
+  background: linear-gradient(135deg, #0b4fa2 0%, #1e60b7 100%);
+  color: white;
+}
+
+.btn-cancel {
+  background: #f1f5f9;
+  color: #475569;
+}
+
+/* HISTORY */
+.history {
+  padding: 0 20px 20px;
+}
+
+.row {
+  background: white;
+  padding: 16px;
+  border-radius: 12px;
+  margin-bottom: 12px;
   font-size: 14px;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.06);
+  border-left: 4px solid #10b981;
+}
+
+.row.bill {
+  border-left-color: #2563eb;
+}
+
+.row.pay {
+  border-left-color: #16a34a;
+}
+
+/* RESPONSIVE */
+@media (max-width: 480px) {
+  .summary {
+    grid-template-columns: 1fr;
+    margin: 15px;
+    padding: 15px;
+  }
+  
+  .header {
+    padding: 15px;
+    font-size: 20px;
+  }
 }
 </style>
 </head>
 
 <body>
-<div class="container">
 
-<h2>🧾 Due Management</h2>
-<div class="totalDue" id="totalDue">Total Due: ₹0</div>
+<!-- HOME SCREEN -->
+<div id="home">
+  <div class="header">Milk Khata Pro</div>
 
-<!-- ADD DUE -->
-<div class="row">
-  <span>Name</span>
-  <input id="name" placeholder="Customer name">
+  <div class="summary">
+    <div>
+      Total Due<br>
+      <span id="totalDue" class="red">₹0</span>
+    </div>
+    <div>
+      Customers<br>
+      <span id="totalCust">0</span>
+    </div>
+  </div>
+
+  <div class="search">
+    <input id="search" placeholder="🔍 Search customers..." oninput="renderList()">
+  </div>
+
+  <div id="list" class="list"></div>
+
+  <button class="add-btn" onclick="openAddCustomer()">+ ADD CUSTOMER</button>
 </div>
 
-<div class="row">
-  <span>Phone</span>
-  <input id="phone" placeholder="10-digit number">
+<!-- ADD CUSTOMER MODAL -->
+<div id="addBox" class="modal">
+  <div class="box">
+    <h2 style="margin: 0 0 24px 0; color: #1e293b;">Add New Customer</h2>
+    
+    <div class="input">
+      <input id="cName" placeholder="Customer Name *" required>
+      <input id="cMob" placeholder="Mobile Number" type="tel">
+      
+      <button class="btn-save" onclick="addCustomer()" style="width: 100%; margin-top: 16px;">Save Customer</button>
+      <button class="btn-cancel" onclick="closeAdd()" style="width: 100%; margin-top: 8px;">Cancel</button>
+    </div>
+  </div>
 </div>
 
-<div class="row">
-  <span>Amount ₹</span>
-  <input id="amount" type="number">
-</div>
+<!-- CUSTOMER DETAIL MODAL -->
+<div id="detail" class="modal">
+  <div class="box">
+    <div class="d-header">
+      <div class="back" onclick="closeDetail()">←</div>
+      <div id="dName" class="d-name"></div>
+      <div id="dBal" class="d-bal"></div>
+    </div>
 
-<button class="add" onclick="addDue()">➕ Add Due</button>
+    <div class="action">
+      <button class="btn-bill" onclick="openInput('bill')">
+        + Add Bill
+      </button>
+      <button class="btn-pay" onclick="openInput('pay')">
+        Receive Payment
+      </button>
+    </div>
 
-<hr>
+    <div id="inputBox" class="input" style="display:none">
+      <h3 id="inputTitle" style="margin: 0 0 20px 0; color: #1e293b;"></h3>
+      <input id="entryDate" type="date">
+      <input id="amt" type="number" placeholder="Enter Amount (₹)" min="0" step="0.01">
+      
+      <button class="btn-save" onclick="saveEntry()">Save Entry</button>
+      <button class="btn-cancel" onclick="closeInput()">Cancel</button>
+    </div>
 
-<h3>📋 Due List</h3>
-
-<div class="table-wrapper">
-<table>
-<thead>
-<tr>
-  <th>Name</th>
-  <th>Due ₹</th>
-  <th>Days</th>
-  <th>WhatsApp</th>
-  <th>Pay Now</th>
-  <th>Status</th>
-</tr>
-</thead>
-<tbody id="dueList"></tbody>
-</table>
-</div>
-
+    <div class="history" id="hist"></div>
+  </div>
 </div>
 
 <script>
-/* ================= DATA ================= */
-let dues = JSON.parse(localStorage.getItem("dues")) || [];
-let totalDueAmount = Number(localStorage.getItem("totalDue")) || 0;
+let customers = [];
+let entries = [];
+let currentCustomer = null;
+let currentMode = '';
 
-/* ================= CORE ================= */
-function addDue() {
-  let name = nameInput.value.trim();
-  let phone = phoneInput.value.trim();
-  let amount = Number(amountInput.value);
+// ✅ FIXED: Proper IST timezone handling
+function getFormattedDate(dateStr){
 
-  if (!name || !phone || !amount) {
-    alert("Fill all details");
-    return;
-  }
+  let now = new Date();
 
-  dues.push({
-    name,
-    phone,
-    amount,
-    date: new Date(),
-    status: "DUE"
-  });
+  if(dateStr){
+    let parts = dateStr.split("-");
 
-  totalDueAmount += amount;
-  saveData();
-  clearInputs();
-  renderDues();
-}
-
-function renderDues() {
-  let html = "";
-  dues.forEach((d, i) => {
-    if (d.status === "PAID") return;
-
-    let days = Math.floor(
-      (new Date() - new Date(d.date)) / (1000 * 60 * 60 * 24)
+    let d = new Date(
+      parts[0],
+      parts[1]-1,
+      parts[2],
+      now.getHours(),
+      now.getMinutes(),
+      now.getSeconds()
     );
 
-    let message =
-`Hello ${d.name},
-Your milk due amount is ₹${d.amount}.
-Pending from ${days} days.
-Please clear it.
-Thank you.`;
+    return {
+      time: d.getTime(),                 // for sorting
+      text: d.toLocaleString("en-IN")    // for display
+    };
+  }
 
-    let waLink =
-`https://wa.me/91${d.phone}?text=${encodeURIComponent(message)}`;
+  return {
+    time: now.getTime(),
+    text: now.toLocaleString("en-IN")
+  };
+}
 
-    html += `
-    <tr>
-      <td>${d.name}</td>
-      <td>₹${d.amount}</td>
-      <td class="pending">${days}</td>
-      <td>
-        <a href="${waLink}" target="_blank">
-          <button class="whatsapp">Send</button>
-        </a>
-      </td>
-      <td>
-        <input type="number" class="pay-input" id="pay${i}">
-        <button class="pay" onclick="payPartial(${i})">Pay</button>
-      </td>
-      <td>DUE</td>
-    </tr>`;
+
+// Save data to localStorage
+function saveData() {
+  localStorage.setItem('milk_customers', JSON.stringify(customers));
+  localStorage.setItem('milk_entries', JSON.stringify(entries));
+}
+
+// Format currency
+function formatCurrency(amount) {
+  return new Intl.NumberFormat('en-IN', {
+    style: 'currency',
+    currency: 'INR',
+    minimumFractionDigits: 0
+  }).format(amount);
+}
+
+// Render customer list
+function renderList() {
+  const searchTerm = document.getElementById('search').value.toLowerCase();
+  const listContainer = document.getElementById('list');
+  let totalDue = 0;
+
+  listContainer.innerHTML = '';
+
+  customers
+    .filter(c => c.name.toLowerCase().includes(searchTerm))
+    .forEach(customer => {
+      const customerEntries = entries.filter(e => e.customerId === customer.id);
+      const totalBill = customerEntries.reduce((sum, e) => sum + e.bill, 0);
+      const totalPaid = customerEntries.reduce((sum, e) => sum + e.paid, 0);
+      const due = totalBill - totalPaid;
+      
+      const lastEntryDate = customerEntries.length > 0 ? 
+        customerEntries[customerEntries.length - 1].date : '';
+
+      totalDue += due;
+
+      listContainer.innerHTML += `
+        <div class="card" onclick="openDetail(${customer.id})">
+          <div>
+            <div class="name">${customer.name}</div>
+            <div class="sub">
+              ${customer.phone ? `📞 ${customer.phone}` : ''}
+              ${lastEntryDate ? `<br>📅 ${lastEntryDate}` : ''}
+            </div>
+          </div>
+          <div class="${due > 0 ? 'red' : 'green'}">
+            ${formatCurrency(due)}
+          </div>
+        </div>
+      `;
+    });
+
+  document.getElementById('totalDue').textContent = formatCurrency(totalDue);
+  document.getElementById('totalCust').textContent = customers.length;
+}
+
+// ADD CUSTOMER
+function openAddCustomer() {
+  document.getElementById('addBox').style.display = 'block';
+  document.getElementById('cName').focus();
+}
+
+function closeAdd() {
+  document.getElementById('addBox').style.display = 'none';
+  document.getElementById('cName').value = '';
+  document.getElementById('cMob').value = '';
+}
+
+function addCustomer() {
+  const name = document.getElementById('cName').value.trim();
+  if (!name) {
+    alert('Please enter customer name');
+    return;
+  }
+
+  const phone = document.getElementById('cMob').value.trim();
+
+  customers.push({
+    id: Date.now(),
+    name,
+    phone
   });
 
-  dueList.innerHTML = html || "<tr><td colspan='6'>No dues</td></tr>";
-  updateTotal();
-}
-
-/* ================= PAY ================= */
-function payPartial(index) {
-  let payAmt = Number(document.getElementById("pay" + index).value);
-
-  if (!payAmt || payAmt <= 0) {
-    alert("Enter valid amount");
-    return;
-  }
-
-  if (payAmt > dues[index].amount) {
-    alert("Amount greater than due");
-    return;
-  }
-
-  dues[index].amount -= payAmt;
-  totalDueAmount -= payAmt;
-
-  if (dues[index].amount === 0) {
-    dues[index].status = "PAID";
-  }
-
   saveData();
-  renderDues();
+  closeAdd();
+  renderList();
 }
 
-/* ================= STORAGE ================= */
-function saveData() {
-  localStorage.setItem("dues", JSON.stringify(dues));
-  localStorage.setItem("totalDue", totalDueAmount);
+// DETAIL VIEW
+function openDetail(customerId) {
+  currentCustomer = customerId;
+  document.getElementById('home').style.display = 'none';
+  document.getElementById('detail').style.display = 'block';
+  updateDetail();
 }
 
-function updateTotal() {
-  totalDueElem.innerText = "Total Due: ₹" + totalDueAmount;
+function closeDetail() {
+  document.getElementById('detail').style.display = 'none';
+  document.getElementById('home').style.display = 'block';
+  document.getElementById('inputBox').style.display = 'none';
+  renderList();
 }
 
-function clearInputs() {
-  nameInput.value = phoneInput.value = amountInput.value = "";
+function updateDetail() {
+  const customer = customers.find(c => c.id === currentCustomer);
+  if (!customer) return;
+
+  document.getElementById('dName').textContent = customer.name;
+  
+  const customerEntries = entries.filter(e => e.customerId === currentCustomer);
+  const totalBill = customerEntries.reduce((sum, e) => sum + e.bill, 0);
+  const totalPaid = customerEntries.reduce((sum, e) => sum + e.paid, 0);
+  const due = totalBill - totalPaid;
+
+  document.getElementById('dBal').innerHTML = `Due: ${formatCurrency(due)}`;
+
+  const historyContainer = document.getElementById('hist');
+  historyContainer.innerHTML = '';
+
+  customerEntries
+    .sort((a, b) => new Date(b.date) - new Date(a.date))
+    .forEach(entry => {
+      const rowClass = entry.bill > 0 ? 'row bill' : 'row pay';
+      historyContainer.innerHTML += `
+        <div class="${rowClass}">
+          <strong>${entry.date}</strong><br>
+          ${entry.bill > 0 ? `Bill: ${formatCurrency(entry.bill)}` : ''}
+          ${entry.paid > 0 ? `Paid: ${formatCurrency(entry.paid)}` : ''}
+        </div>
+      `;
+    });
 }
 
-/* ================= ELEMENTS ================= */
-const nameInput = document.getElementById("name");
-const phoneInput = document.getElementById("phone");
-const amountInput = document.getElementById("amount");
-const dueList = document.getElementById("dueList");
-const totalDueElem = document.getElementById("totalDue");
+// INPUT MODAL
+function openInput(mode) {
+  currentMode = mode;
+  const inputBox = document.getElementById('inputBox');
+  inputBox.style.display = 'block';
+  
+  document.getElementById('inputTitle').textContent = mode === 'bill' ? 'Add Bill Entry' : 'Record Payment';
+  
+  const today = new Date();
+  document.getElementById('entryDate').value = today.toISOString().split('T')[0];
+  document.getElementById('amt').value = '';
+  document.getElementById('amt').focus();
+}
 
-/* ================= INIT ================= */
-renderDues();
+function closeInput() {
+  document.getElementById('inputBox').style.display = 'none';
+  document.getElementById('amt').value = '';
+}
+
+function saveEntry() {
+  const amount = parseFloat(document.getElementById('amt').value);
+  if (amount <= 0 || isNaN(amount)) {
+    alert('Please enter a valid amount');
+    return;
+  }
+
+  const dateInput = document.getElementById('entryDate').value;
+  if (!dateInput) {
+    alert('Please select a date');
+    return;
+  }
+
+ const entryDate = getFormattedDate(dateInput);
+
+entries.push({
+  customerId: currentCustomer,
+  bill: currentMode === 'bill' ? amount : 0,
+  paid: currentMode === 'pay' ? amount : 0,
+
+  time: entryDate.time,   // timestamp
+  date: entryDate.text    // display date
+});
+    saveData();
+    closeInput();
+    updateDetail();
+    }
+
+// Initialize app
+loadData();
 </script>
 
 </body>
-  </html>
+</html> 
