@@ -617,6 +617,20 @@ entries.push({
     closeInput();
     updateDetail();
     }
+function loadData() {
+  const savedCustomers = localStorage.getItem('milk_customers');
+  const savedEntries = localStorage.getItem('milk_entries');
+
+  if (savedCustomers) {
+    customers = JSON.parse(savedCustomers);
+  }
+
+  if (savedEntries) {
+    entries = JSON.parse(savedEntries);
+  }
+
+  renderList();
+}
 
 // Initialize app
 loadData();
